@@ -23,11 +23,17 @@ android {
   }
 
   signingConfigs {
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    // Persistent CI signing key. Keeping this key stable is required for
+    // Android to accept updates without uninstalling the existing app.
+    create("qabasCi") {
+      val keystoreFile = file("${rootDir}/signing/qabas-ci.p12")
+      if (keystoreFile.exists()) {
+        storeFile = keystoreFile
+        storePassword = System.getenv("STORE_PASSWORD") ?: "android"
+        keyAlias = System.getenv("KEY_ALIAS") ?: "androiddebugkey"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
+        storeType = "PKCS12"
+      }
     }
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
@@ -49,10 +55,13 @@ android {
       val releaseCfg = signingConfigs.getByName("release")
       if (releaseCfg.storeFile != null && releaseCfg.storeFile!!.exists()) {
         signingConfig = releaseCfg
+      } else {
+        // Keep release builds installable in CI when release secrets are absent.
+        signingConfig = signingConfigs.getByName("qabasCi")
       }
     }
     debug {
-      signingConfig = signingConfigs.getByName("debugConfig")
+      signingConfig = signingConfigs.getByName("qabasCi")
     }
   }
 
