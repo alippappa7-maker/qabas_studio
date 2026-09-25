@@ -154,6 +154,8 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
         }
     }
 
+    androidx.activity.compose.BackHandler(onBack = handleBack)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -471,175 +473,254 @@ fun DashboardMainGrid(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Premium Server Status Card
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = CardSurface),
-            shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.3f))
-        ) {
-            Box(modifier = Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(DeepSlate, CardSurface)))) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Column {
-                        Text("Qabas Dev Studio", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("المطور الرئيسي: aliwalead.2007", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 14.sp)
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
+    val Gold = GoldPrimary
+    val Cyan = Color(0xFF22D3EE)
+    val Violet = Color(0xFF8B5CF6)
+    val Green = Color(0xFF10B981)
+    val Red = Color(0xFFEF4444)
+    val Amber = Color(0xFFE8C547)
+    val items = listOf(
+        Quad("مراقبة المفاتيح الحية (14) ⚡", Icons.Default.Sensors, Gold, onLiveKeyHub, "الصحة والتشخيص"),
+        Quad("مركز الصحة 🩺", Icons.Default.MedicalServices, Gold, onHealthCenter, "الصحة والتشخيص"),
+        Quad("غرفة الوكيل 🤖", Icons.Default.SmartToy, Violet, onAgentRoom, "الإنتاج والمحتوى"),
+        Quad("الموصلات 🔌", Icons.Default.Cable, Cyan, onConnectors, "النظام والإعدادات"),
+        Quad("عقل الأساليب", Icons.Default.Psychology, Violet, onStyleBrain, "الإنتاج والمحتوى"),
+        Quad("ملتقط مشاكل الإنتاج", Icons.Default.BugReport, Gold, onProductionPipeline, "الإنتاج والمحتوى"),
+        Quad("توقيع واستوديو المطور", Icons.Default.Verified, Amber, onDevStudioSignature, "الإنتاج والمحتوى"),
+        Quad("إدارة المستخدمين", Icons.Default.Group, Cyan, onUsers, "المال والمستخدمون"),
+        Quad("مركز المال 💰", Icons.Default.AttachMoney, Green, onMoneyCenter, "المال والمستخدمون"),
+        Quad("طلبات التطبيقات", Icons.Default.Build, Cyan, onRequestSection, "المال والمستخدمون"),
+        Quad("مركز الإحصائيات 📊", Icons.Default.Analytics, Cyan, onStats, "النظام والإعدادات"),
+        Quad("إرسال الإشعارات", Icons.Default.Notifications, Amber, onNotifications, "النظام والإعدادات"),
+        Quad("التحكم في النظام", Icons.Default.Settings, Color(0xFF94A3B8), onSystemControls, "النظام والإعدادات"),
+        Quad("إعدادات حساب المطور", Icons.Default.ManageAccounts, Cyan, onAccountSettings, "النظام والإعدادات"),
+        Quad("مفاتيح API", Icons.Default.VpnKey, Cyan, onApiKeys, "النظام والإعدادات"),
+        Quad("سجل التدقيق", Icons.Default.History, Violet, onAuditLog, "النظام والإعدادات"),
+        Quad("نسخ احتياطي واسترجاع", Icons.Default.Backup, Amber, onBackup, "النظام والإعدادات"),
+        Quad("مركز البناء", Icons.Default.Construction, Amber, onBuildCenter, "النظام والإعدادات")
+    )
+    val grouped = items.groupBy { it.group }.toList()
+    var collapsed by remember { mutableStateOf(setOf<String>()) }
 
-                    // Status strip: full-width rectangle under developer account
-                    Surface(
-                        color = Color(0xFF0B0F19).copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isGridOnline) Color(0xFF10B981).copy(alpha = 0.5f) else Color(0xFFEF4444).copy(alpha = 0.5f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(bottom = 32.dp)
+    ) {
+        // بطاقة ملخص المطور المدمجة والفاخرة (Dark Luxury + Glassmorphism)
+        // قابلة للتمرير الطبيعي مع كامل الشاشة دون حجب الأقسام أدناها
+        item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = CardSurface.copy(alpha = 0.9f)),
+                shape = RoundedCornerShape(18.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(GoldPrimary.copy(alpha = 0.45f), Color(0x33B89758), GoldSecondary.copy(alpha = 0.35f))
+                    )
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xFF0F172A), DeepSlate, Color(0xFF090D16))
+                            )
+                        )
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Canvas(modifier = Modifier.size(8.dp)) {
-                                    drawCircle(color = if (isGridOnline) Color(0xFF10B981).copy(alpha = pulseAlpha) else Color(0xFFEF4444).copy(alpha = pulseAlpha))
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = if (isGridOnline) "متصل" else "غير متصل",
-                                    color = if (isGridOnline) Color(0xFF10B981) else Color(0xFFEF4444),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Canvas(modifier = Modifier.size(8.dp)) {
-                                    drawCircle(color = if (isSupabaseOnline) Color(0xFF10B981).copy(alpha = pulseAlpha) else Color(0xFFEF4444).copy(alpha = pulseAlpha))
-                                }
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = if (isSupabaseOnline) "سحابة ✓" else "سحابة ✗",
-                                    color = if (isSupabaseOnline) Color(0xFF10B981) else Color(0xFFEF4444),
-                                    fontFamily = CairoFont,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.weight(1f))
-                            // عدّاد سرعة رقمي حي ⚡ (قياس حقيقي: ping + تحميل)
-                            DigitalSpeedCounter()
-                        }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(20.dp))
-                    
-                    // Quick Metrics
-                    Row(
-                        modifier = Modifier.fillMaxWidth().background(DeepSlate, RoundedCornerShape(12.dp)).padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(Modifier.weight(1f)) { QuickMetric(Icons.Default.MedicalServices, "حالة التطبيق", diagnosticSummary) }
-                        Box(Modifier.weight(1f)) { QuickMetric(Icons.Default.CloudSync, "الشبكة", if (isGridOnline) "متصلة" else "منقطعة") }
-                        Box(Modifier.weight(1f)) { QuickMetric(Icons.Default.Group, "المستخدمين", userCount.toString()) }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Live 14 Keys Telemetry Interactive Banner
-                    Surface(
-                        color = Color(0xFF151B2B),
-                        shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onLiveKeyHub() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(GoldPrimary.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
+                            Column {
+                                Text(
+                                    text = "Qabas Dev Studio",
+                                    color = GoldPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                                Text(
+                                    text = "المطور الرئيسي: aliwalead.2007",
+                                    color = TextSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 12.sp
+                                )
+                            }
+
+                            Surface(
+                                color = GoldPrimary.copy(alpha = 0.12f),
+                                shape = CircleShape,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 ) {
-                                    Icon(Icons.Default.Sensors, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(22.dp))
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("مركز المراقبة والاتصال الحي للمفاتيح الـ 14", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(0xFF10B981))
-                                        )
-                                    }
-                                    Text("فحص حي فوري • عدادات الاستجابة • خريطة كيف ولماذا", color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp)
+                                    Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Dev Hub", color = GoldPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "فتح", tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // شريط الحالة والسرعة الحية المدمج
+                        Surface(
+                            color = Color(0xFF070B14).copy(alpha = 0.65f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (isGridOnline) Color(0xFF10B981).copy(alpha = 0.35f) else Color(0xFFEF4444).copy(alpha = 0.35f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Canvas(modifier = Modifier.size(7.dp)) {
+                                        drawCircle(
+                                            color = if (isGridOnline) Color(0xFF10B981).copy(alpha = pulseAlpha)
+                                            else Color(0xFFEF4444).copy(alpha = pulseAlpha)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = if (isGridOnline) "متصل" else "غير متصل",
+                                        color = if (isGridOnline) Color(0xFF10B981) else Color(0xFFEF4444),
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Canvas(modifier = Modifier.size(7.dp)) {
+                                        drawCircle(
+                                            color = if (isSupabaseOnline) Color(0xFF10B981).copy(alpha = pulseAlpha)
+                                            else Color(0xFFEF4444).copy(alpha = pulseAlpha)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(
+                                        text = if (isSupabaseOnline) "سحابة ✓" else "سحابة ✗",
+                                        color = if (isSupabaseOnline) Color(0xFF10B981) else Color(0xFFEF4444),
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.weight(1f))
+                                DigitalSpeedCounter()
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // المؤشرات السريعة المدمجة
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(DeepSlate.copy(alpha = 0.75f), RoundedCornerShape(10.dp))
+                                .padding(horizontal = 6.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(Modifier.weight(1f)) { QuickMetric(Icons.Default.MedicalServices, "حالة التطبيق", diagnosticSummary) }
+                            Box(Modifier.weight(1f)) { QuickMetric(Icons.Default.CloudSync, "الشبكة", if (isGridOnline) "متصلة" else "منقطعة") }
+                            Box(Modifier.weight(1f)) { QuickMetric(Icons.Default.Group, "المستخدمين", userCount.toString()) }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // لافتة مركز مراقبة المفاتيح الـ 14 بشكل زجاجي أنيق ومدمج
+                        Surface(
+                            color = Color(0xFF111726).copy(alpha = 0.85f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Brush.horizontalGradient(
+                                    listOf(GoldPrimary.copy(alpha = 0.5f), Color(0x33B89758))
+                                )
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onLiveKeyHub() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(34.dp)
+                                            .clip(CircleShape)
+                                            .background(GoldPrimary.copy(alpha = 0.15f))
+                                            .border(1.dp, GoldPrimary.copy(alpha = 0.35f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Sensors, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                "مركز المراقبة والاتصال الحي للمفاتيح الـ 14",
+                                                color = GoldPrimary,
+                                                fontFamily = CairoFont,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                            Spacer(modifier = Modifier.width(5.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color(0xFF10B981))
+                                            )
+                                        }
+                                        Text(
+                                            "فحص فوري • عدادات الاستجابة • خريطة كيف ولماذا",
+                                            color = TextSecondary,
+                                            fontFamily = NotoSansFont,
+                                            fontSize = 10.sp
+                                        )
+                                    }
+                                }
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "فتح", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
                 }
             }
         }
 
-        val Gold = GoldPrimary
-        val Cyan = Color(0xFF22D3EE)
-        val Violet = Color(0xFF8B5CF6)
-        val Green = Color(0xFF10B981)
-        val Red = Color(0xFFEF4444)
-        val Amber = Color(0xFFE8C547)
-        val items = listOf(
-            Quad("مراقبة المفاتيح الحية (14) ⚡", Icons.Default.Sensors, Gold, onLiveKeyHub, "الصحة والتشخيص"),
-            Quad("مركز الصحة 🩺", Icons.Default.MedicalServices, Gold, onHealthCenter, "الصحة والتشخيص"),
-            Quad("غرفة الوكيل 🤖", Icons.Default.SmartToy, Violet, onAgentRoom, "الإنتاج والمحتوى"),
-            Quad("الموصلات 🔌", Icons.Default.Cable, Cyan, onConnectors, "النظام والإعدادات"),
-            Quad("عقل الأساليب", Icons.Default.Psychology, Violet, onStyleBrain, "الإنتاج والمحتوى"),
-            Quad("ملتقط مشاكل الإنتاج", Icons.Default.BugReport, Gold, onProductionPipeline, "الإنتاج والمحتوى"),
-            Quad("توقيع واستوديو المطور", Icons.Default.Verified, Amber, onDevStudioSignature, "الإنتاج والمحتوى"),
-            Quad("إدارة المستخدمين", Icons.Default.Group, Cyan, onUsers, "المال والمستخدمون"),
-            Quad("مركز المال 💰", Icons.Default.AttachMoney, Green, onMoneyCenter, "المال والمستخدمون"),
-            Quad("طلبات التطبيقات", Icons.Default.Build, Cyan, onRequestSection, "المال والمستخدمون"),
-            Quad("مركز الإحصائيات 📊", Icons.Default.Analytics, Cyan, onStats, "النظام والإعدادات"),
-            Quad("إرسال الإشعارات", Icons.Default.Notifications, Amber, onNotifications, "النظام والإعدادات"),
-            Quad("التحكم في النظام", Icons.Default.Settings, Color(0xFF94A3B8), onSystemControls, "النظام والإعدادات"),
-            Quad("إعدادات حساب المطور", Icons.Default.ManageAccounts, Cyan, onAccountSettings, "النظام والإعدادات"),
-            Quad("مفاتيح API", Icons.Default.VpnKey, Cyan, onApiKeys, "النظام والإعدادات"),
-            Quad("سجل التدقيق", Icons.Default.History, Violet, onAuditLog, "النظام والإعدادات"),
-            Quad("نسخ احتياطي واسترجاع", Icons.Default.Backup, Amber, onBackup, "النظام والإعدادات"),
-            Quad("مركز البناء", Icons.Default.Construction, Amber, onBuildCenter, "النظام والإعدادات")
-        )
-        val grouped = items.groupBy { it.group }.toList()
-        var collapsed by remember { mutableStateOf(setOf<String>()) }
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 24.dp)
-        ) {
-            grouped.forEach { (group, quads) ->
-                item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
-                    DashGroupHeader(
-                        title = group,
-                        count = quads.size,
-                        isCollapsed = group in collapsed,
-                        onToggle = { collapsed = if (group in collapsed) collapsed - group else collapsed + group }
-                    )
-                }
-                if (group !in collapsed) {
-                    items(quads) { quad -> DashCard(quad) }
-                }
+        grouped.forEach { (group, quads) ->
+            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
+                DashGroupHeader(
+                    title = group,
+                    count = quads.size,
+                    isCollapsed = group in collapsed,
+                    onToggle = { collapsed = if (group in collapsed) collapsed - group else collapsed + group }
+                )
+            }
+            if (group !in collapsed) {
+                items(quads) { quad -> DashCard(quad) }
             }
         }
     }

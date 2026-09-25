@@ -334,7 +334,7 @@ data class ProjectState(
     val mediaResources: List<MediaResource> = emptyList(),
     val currentProjectId: String? = null,
     val projectTitle: String = Translator.tr("مشروع جديد"),
-    val appState: AppState = AppState.HOME,
+    val appState: AppState = AppState.DATA_LOADING,
     val showChatSheet: Boolean = false,
     val videoDuration: String = Translator.tr("30 ثانية"),
     val editingStyle: String = Translator.tr("أسلوب 3nvus / نيون داكن"),
@@ -365,7 +365,7 @@ class ProjectViewModel(private val context: Context) : ViewModel() {
 
     private val _state = MutableStateFlow(
         ProjectState(
-            appState = AppState.HOME,
+            appState = AppState.DATA_LOADING,
             selectedRatio = prefs.getString("ratio", "9:16") ?: "9:16",
             inputText = prefs.getString("input", "") ?: "",
             videoDuration = prefs.getString("duration", Translator.tr("30 ثانية"))
