@@ -1,0 +1,85 @@
+package com.qabas.app
+
+import android.content.Context
+import android.content.SharedPreferences
+import android.util.Log
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import java.security.MessageDigest
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
+import android.util.Base64
+
+object KeySyncService {
+
+    private const val TAG = "KeySyncService"
+    private const val PREFS_NAME = "qabas_prefs"
+    private const val SYNC_TABLE = "user_api_keys"
+    private const val ENCRYPTION_KEY_PREF = "key_sync_master"
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+
+    @Serializable
+    data class SyncedKey(
+        val id: String = "",
+        val user_id: String = "",
+        val service: String = "",
+        val encrypted_value: String = "",
+        val updated_at: String = ""
+    )
+
+    private val KEY_FIELDS = listOf(
+        "gemini_key", "groq_key", "openai_key", "openrouter_key", "huggingface_key",
+        "azure_speech_key", "azure_speech_region", "elevenlabs_key",
+        "pexels_key", "pixabay_key", "coverr_key"
+    )
+
+    private fun getOrCreateMasterKey(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        var key = prefs.getString(ENCRYPTION_KEY_PREF, null)
+        if (key == null) {
+            key = buildString {
+                val random = java.security.SecureRandom()
+                val bytes = ByteArray(16)
+                random.nextBytes(bytes)
+                bytes.forEach { append("%02x".format(it)) }
+            }
+            prefs.edit().putString(ENCRYPTION_KEY_PREF, key).apply()
+        }
+        return key
+    }
+
+    private fun encrypt(value: String, masterKey: String): String {
+        return try {
+            val keyBytes = masterKey.toByteArray(Charsets.UTF_8).copyOf(16)
+            val secretKey = SecretKeySpec(keyBytes, "AES")
+            val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+            val encrypted = cipher.doFinal(value.toByteArray(Charsets.UTF_8))
+            Base64.encodeToString(encrypted, Base64.NO_WRAP)
+        } catch (e: Exception) {
+            Log.w(TAG, "Encrypt failed, using plain base64", e)
+            Base64.encodeToString(value.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        }
+    }
+
+    private fun decrypt(encrypted: String, masterKey: String): String {
+        return try {
+            val keyBytes = masterKey.toByteArray(Charsets.UTF_8).copyOf(16)
+            val secretKey = SecretKeySpec(keyBytes, "AES")
+            val cipher = Cipher.getInstance("AES/ECB/PKCS5Padding")
+            cipher.init(Cipher.DECRYPT_MODE, secretKey)
+            val decrypted = cipher.doFinal(Base64.decode(encrypted, Base64.NO_WRAP))
+            String(decrypted, Charsets.UTF_8)
+        } catch (e: Exception) {

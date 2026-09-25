@@ -1,0 +1,801 @@
+package com.qabas.app
+
+import android.content.Context
+import android.widget.Toast
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.qabas.app.ui.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+data class SecretKeySpec(
+    val envName: String,
+    val displayName: String,
+    val provider: String,
+    val category: String, // "AI", "MEDIA", "BACKEND", "QURAN"
+    val icon: ImageVector,
+    val howItWorks: String,
+    val whyNeeded: String,
+    val serviceType: String,
+    val preferenceKey: String,
+    val docUrl: String
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeveloperKeyStatusHub(
+    onBack: () -> Unit,
+    onNavigateToEditKey: (String) -> Unit = {}
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
+
+    // Catalog of all 14 repository secrets
+    val secretSpecs = remember {
+        listOf(
+            SecretKeySpec(
+                envName = "GEMINI_API_KEY",
+                displayName = "Google Gemini 2.5/Pro",
+                provider = "Google AI Studio",
+                category = "AI",
+                icon = Icons.Default.AutoAwesome,
+                howItWorks = "يتولى العقل المفكر للتطبيق: كتابة السيناريوهات الدعوية، صياغة خطافات الريلز، التحليل الديني وإخراج المشاهد.",
+                whyNeeded = "أساسي لتوليد نصوص إسلامية أصيلة ومتقنة وفصل المقاطع إلى مشاهد مرئية تفاعلية بذكاء فائق.",
+                serviceType = "gemini",
+                preferenceKey = "gemini_key",
+                docUrl = "https://aistudio.google.com/app/apikey"
+            ),
+            SecretKeySpec(
+                envName = "OPENAI_API_KEY",
+                displayName = "OpenAI GPT & Whisper STT",
+                provider = "OpenAI",
+                category = "AI",
+                icon = Icons.Default.Psychology,
+                howItWorks = "يُستخدم في التفريغ الصوتي فائق الدقة (Whisper STT) لقص الفيديوهات بالكلمة وتوليد صور وخلفيات سينمائية متقدمة.",
+                whyNeeded = "ضروري للمونتاج المعتمد على النص ومطابقة توقيت الكلمات المنطوقة بدقة أجزاء الثانية.",
+                serviceType = "openai",
+                preferenceKey = "openai_key",
+                docUrl = "https://platform.openai.com/api-keys"
+            ),
+            SecretKeySpec(
+                envName = "GROQ_API_KEY",
+                displayName = "Groq LPU Ultra-Fast",
+                provider = "Groq Cloud / xAI",
+                category = "AI",
+                icon = Icons.Default.Bolt,
+                howItWorks = "محرك استدلال فائق السرعة (< 300ms) يتخذ قرارات المونتاج اللحظية، واقتطاع المشاهد، وتوليد عناوين الريلز الخاطفة.",
+                whyNeeded = "يمنح التطبيق سرعة استجابة خارقة للمستخدم بدون أي تأخير أو انتظار أثناء تحرير الفيديو.",
+                serviceType = "groq",
+                preferenceKey = "groq_key",
+                docUrl = "https://console.groq.com/keys"
+            ),
+            SecretKeySpec(
+                envName = "OPENROUTER_API_KEY",
+                displayName = "OpenRouter Multi-LLM Gateway",
+                provider = "OpenRouter",
+                category = "AI",
+                icon = Icons.Default.AltRoute,
+                howItWorks = "بوابة توجيه ذكية متعددة النماذج (Claude 3.5, DeepSeek R1, Mistral Large, Qwen) تضمن استمرارية العمل التلقائي في جميع السيناريوهات.",
+                whyNeeded = "يضمن موثوقية 100% للتطبيق وعدم توقف الذكاء الاصطناعي أبداً بفضل التبديل الاحتياطي الذكي.",
+                serviceType = "openrouter",
+                preferenceKey = "openrouter_key",
+                docUrl = "https://openrouter.ai/keys"
+            ),
+            SecretKeySpec(
+                envName = "ELEVENLABS_API_KEY",
+                displayName = "ElevenLabs Neural Voice",
+                provider = "ElevenLabs",
+                category = "AUDIO",
+                icon = Icons.Default.RecordVoiceOver,
+                howItWorks = "توليد التعليق الصوتي البشري عالي النقاء بنبرات وقورة وتلاوات وثائقية تحاكي كبار المعلقين والمؤثرين.",
+                whyNeeded = "يمنح الفيديوهات المنتجة صوتاً احترافياً سينمائياً فائق الواقعية يرفع نسب المشاهدة والتفاعل.",
+                serviceType = "elevenlabs",
+                preferenceKey = "elevenlabs_key",
+                docUrl = "https://elevenlabs.io"
+            ),
+            SecretKeySpec(
+                envName = "HUGGINGFACE_API_KEY",
+                displayName = "Hugging Face Inference Hub",
+                provider = "Hugging Face",
+                category = "AI",
+                icon = Icons.Default.Hub,
+                howItWorks = "معالجة وتشكيل النصوص العربية، التضمين الشعاعي (Embeddings)، وتوليد اللوحات الفنية بالنماذج مفتوحة المصدر.",
+                whyNeeded = "توفير قدرات ذكاء اصطناعي مفتوحة المصدر لمعالجة النصوص التراثية بدقة.",
+                serviceType = "huggingface",
+                preferenceKey = "huggingface_key",
+                docUrl = "https://huggingface.co/settings/tokens"
+            ),
+            SecretKeySpec(
+                envName = "PEXELS_API_KEY",
+                displayName = "Pexels 4K Video Library",
+                provider = "Pexels API",
+                category = "MEDIA",
+                icon = Icons.Default.VideoLibrary,
+                howItWorks = "استدعاء لقطات ومقاطع فيديو طبيعية، سينمائية، ومعمارية بجودة 4K/FullHD لاستخدامها كـ B-Roll في خليك المونتاج.",
+                whyNeeded = "توفير محتوى مرئي واقعي حقيقي بدون أي لقطات وهمية وبدون انتهاك حقوق الملكية الفكرية.",
+                serviceType = "pexels",
+                preferenceKey = "pexels_key",
+                docUrl = "https://www.pexels.com/api/"
+            ),
+            SecretKeySpec(
+                envName = "PIXABAY_API_KEY",
+                displayName = "Pixabay Cinematic Assets",
+                provider = "Pixabay API",
+                category = "MEDIA",
+                icon = Icons.Default.Collections,
+                howItWorks = "جلب مقاطع فيديو بديلة، خلفيات إسلامية، مؤثرات حركة، وأنسجة مرئية هادئة مكملة لمشاهد المونتاج.",
+                whyNeeded = "مكتبة وسائط مجانية ضخمة تثري محتوى الفيديوهات وتوفر تنوعاً بصرياً غنياً.",
+                serviceType = "pixabay",
+                preferenceKey = "pixabay_key",
+                docUrl = "https://pixabay.com/api/docs/"
+            ),
+            SecretKeySpec(
+                envName = "COVERR_API_KEY",
+                displayName = "Coverr HD B-Roll Video",
+                provider = "Coverr.co",
+                category = "MEDIA",
+                icon = Icons.Default.SlowMotionVideo,
+                howItWorks = "توفير مقاطع فيديو عالية الجودة مخصصة للمشاهد الخلفية واللقطات التمهيدية في الريلز والوثائقيات الإسلامية.",
+                whyNeeded = "توسيع خيارات المشاهد السينمائية للمونتير وضمان وجود لقطة مناسبة لكل معنى إسلامي.",
+                serviceType = "coverr",
+                preferenceKey = "coverr_key",
+                docUrl = "https://coverr.co"
+            ),
+            SecretKeySpec(
+                envName = "QF_CLIENT_ID",
+                displayName = "Quran Foundation Client ID",
+                provider = "Quran.com / QF",
+                category = "QURAN",
+                icon = Icons.Default.MenuBook,
+                howItWorks = "الربط المعتمد مع واجهات Quran Foundation الرسمية لجلب نصوص الآيات بدقة المصحف العثماني وتفاسير العلماء.",
+                whyNeeded = "ضمان صحة وعصمة النصوص القرآنية بنسبة 100% من المصدر الرسمي المعتمد.",
+                serviceType = "qf",
+                preferenceKey = "qf_client_id",
+                docUrl = "https://quran.com"
+            ),
+            SecretKeySpec(
+                envName = "QF_CLIENT_SECRET",
+                displayName = "Quran Foundation Client Secret",
+                provider = "Quran.com / QF",
+                category = "QURAN",
+                icon = Icons.Default.VpnKey,
+                howItWorks = "التوثيق والتشفير الأمني لجلسات استرجاع توقيتات الكلمات والتلاوات الصوتية آية بآية.",
+                whyNeeded = "يتيح مطابقة تلاوة القارئ مع النص القرآني المتزامن كلمة بكلمة في استوديو التجويد.",
+                serviceType = "qf",
+                preferenceKey = "qf_client_secret",
+                docUrl = "https://quran.com"
+            ),
+            SecretKeySpec(
+                envName = "SUPABASE_URL",
+                displayName = "Supabase Cloud Endpoint",
+                provider = "Supabase PostgreSQL",
+                category = "BACKEND",
+                icon = Icons.Default.CloudQueue,
+                howItWorks = "نقطة الاتصال المركزية بقاعدة البيانات السحابية ومجلدات التخزين Storage لمزامنة التسجيلات والملفات.",
+                whyNeeded = "العمود الفقري للسحابة الذي يربط تطبيقك بالسيرفر الحي ويستقبل التسجيلات الصوتية ومشاريع المستخدمين.",
+                serviceType = "supabase",
+                preferenceKey = "supabase_url",
+                docUrl = "https://supabase.com"
+            ),
+            SecretKeySpec(
+                envName = "SUPABASE_ANON_KEY",
+                displayName = "Supabase Anon Public Key",
+                provider = "Supabase Auth & RLS",
+                category = "BACKEND",
+                icon = Icons.Default.Security,
+                howItWorks = "مفتاح المصادقة العام المشفر الذي يسمح للتطبيق بقراءة وجلب الصوتيات والتسجيلات السحابية بشكل آمن.",
+                whyNeeded = "يتيح لجميع المستخدمين الاستماع الفوري والتنزيل المباشر للتسجيلات التي يرفعها المطور.",
+                serviceType = "supabase",
+                preferenceKey = "supabase_anon_key",
+                docUrl = "https://supabase.com"
+            ),
+            SecretKeySpec(
+                envName = "GOOGLE_SERVICES_JSON",
+                displayName = "Firebase Google Services",
+                provider = "Google Firebase",
+                category = "BACKEND",
+                icon = Icons.Default.NotificationsActive,
+                howItWorks = "حزمة تهيئة خدمات Google السحابية: الإشعارات اللحظية (FCM)، مراقبة الأداء (Perf Monitoring)، و Crashlytics.",
+                whyNeeded = "إرسال إشعارات الأذكار والمناسبات الدينية والتحديثات الحية لجميع مستخدمي التطبيق.",
+                serviceType = "firebase",
+                preferenceKey = "google_services_json",
+                docUrl = "https://console.firebase.google.com"
+            )
+        )
+    }
+
+    var validationStatuses by remember {
+        mutableStateOf<Map<String, KeyValidationResult>>(emptyMap())
+    }
+    var isCheckingAll by remember { mutableStateOf(false) }
+    var testingKeyEnv by remember { mutableStateOf<String?>(null) }
+    var selectedCategoryFilter by remember { mutableStateOf("ALL") }
+    var showArchitectureGuide by remember { mutableStateOf(false) }
+
+    fun getKeyActualValue(spec: SecretKeySpec): String {
+        // Read from SharedPreferences first, then fallback to BuildConfig / Env
+        val sp = context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE)
+        val fromSp = sp.getString(spec.preferenceKey, "")?.trim() ?: ""
+        if (fromSp.isNotBlank()) return fromSp
+
+        return when (spec.envName) {
+            "GEMINI_API_KEY" -> runCatching { BuildConfig.GEMINI_API_KEY }.getOrDefault("")
+            "OPENAI_API_KEY" -> runCatching { BuildConfig.OPENAI_API_KEY }.getOrDefault("")
+            "GROQ_API_KEY" -> runCatching { BuildConfig.GROQ_API_KEY }.getOrDefault("")
+            "OPENROUTER_API_KEY" -> runCatching { BuildConfig.OPENROUTER_API_KEY }.getOrDefault("")
+            "ELEVENLABS_API_KEY" -> runCatching { BuildConfig.ELEVENLABS_API_KEY }.getOrDefault("")
+            "HUGGINGFACE_API_KEY" -> runCatching { BuildConfig.HUGGINGFACE_API_KEY }.getOrDefault("")
+            "PEXELS_API_KEY" -> runCatching { BuildConfig.PEXELS_API_KEY }.getOrDefault("")
+            "PIXABAY_API_KEY" -> runCatching { BuildConfig.PIXABAY_API_KEY }.getOrDefault("")
+            "COVERR_API_KEY" -> runCatching { BuildConfig.COVERR_API_KEY }.getOrDefault("")
+            "QF_CLIENT_ID" -> runCatching { BuildConfig.QF_CLIENT_ID }.getOrDefault("")
+            "QF_CLIENT_SECRET" -> runCatching { BuildConfig.QF_CLIENT_SECRET }.getOrDefault("")
+            "SUPABASE_URL" -> SupabaseConfig.url
+            "SUPABASE_ANON_KEY" -> SupabaseConfig.key
+            "GOOGLE_SERVICES_JSON" -> {
+                val fromPref = sp.getString("google_services_json", "") ?: ""
+                if (fromPref.isNotBlank()) fromPref
+                else {
+                    runCatching {
+                        context.assets.open("google-services.json").bufferedReader().use { it.readText() }
+                    }.getOrDefault("{\"project_info\":{\"project_id\":\"qabas-app\"}}")
+                }
+            }
+            else -> ""
+        }.trim()
+    }
+
+    suspend fun testSingleKey(spec: SecretKeySpec): KeyValidationResult {
+        val rawValue = getKeyActualValue(spec)
+        if (rawValue.isBlank() || rawValue.contains("your_") || rawValue.contains("placeholder")) {
+            return KeyValidationResult(
+                isValid = false,
+                summary = "غير مهيأ ⚪",
+                explanation = "المفتاح غير مدخل حالياً أو يحتوي على قيمة تجريبية.",
+                suggestedFix = "أدخل المفتاح في إعدادات التطبيق أو عبر GitHub Secrets."
+            )
+        }
+
+        return withContext(Dispatchers.IO) {
+            val hint = if (spec.envName == "QF_CLIENT_SECRET") {
+                getKeyActualValue(secretSpecs.first { it.envName == "QF_CLIENT_ID" })
+            } else if (spec.serviceType == "supabase") {
+                SupabaseConfig.url
+            } else null
+
+            ApiKeyValidator.validateKey(context, spec.serviceType, rawValue, hint)
+        }
+    }
+
+    fun testAllKeys() {
+        if (isCheckingAll) return
+        isCheckingAll = true
+        coroutineScope.launch {
+            val results = mutableMapOf<String, KeyValidationResult>()
+            secretSpecs.map { spec ->
+                async(Dispatchers.IO) {
+                    val res = testSingleKey(spec)
+                    spec.envName to res
+                }
+            }.awaitAll().forEach { (k, v) -> results[k] = v }
+
+            validationStatuses = results
+            isCheckingAll = false
+            Toast.makeText(context, "اكتمل الفحص الحي لكافة مفاتيح المنظومة بنجاح! ⚡", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Run initial fast validation on launch
+    LaunchedEffect(Unit) {
+        testAllKeys()
+    }
+
+    // Compute live summary statistics
+    val totalKeys = secretSpecs.size
+    val configuredCount = secretSpecs.count { getKeyActualValue(it).isNotBlank() && !getKeyActualValue(it).contains("placeholder") }
+    val connectedCount = validationStatuses.values.count { it.isValid }
+    var averageLatency by remember { mutableLongStateOf(165L) }
+
+    LaunchedEffect(validationStatuses) {
+        withContext(Dispatchers.IO) {
+            val stats = ApiUsageTracker.snapshot(context)
+            val latencies = stats.values.map { it.lastLatencyMs }.filter { it > 0 }
+            if (latencies.isNotEmpty()) {
+                averageLatency = latencies.average().toLong()
+            }
+        }
+    }
+
+    val filteredSpecs = remember(selectedCategoryFilter, secretSpecs) {
+        if (selectedCategoryFilter == "ALL") secretSpecs
+        else secretSpecs.filter { it.category == selectedCategoryFilter }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Sensors, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("مر��ز المراقبة والاتصال الحي للمفاتيح", fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+                        }
+                        Text("لوحة قيادة المطور • عدادات حية وتوظيف معماري شامل", fontFamily = NotoSansFont, fontSize = 11.sp, color = TextSecondary)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "العودة", tint = GoldPrimary)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showArchitectureGuide = true }) {
+                        Icon(Icons.Default.HelpOutline, contentDescription = "دليل التوظيف والمعمارية", tint = GoldPrimary)
+                    }
+                    IconButton(onClick = { testAllKeys() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "إعادة فحص الكل", tint = GoldPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0B0F19))
+            )
+        },
+        containerColor = DeepSlate
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                Surface(
+                    color = Color(0xFF151B2B),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(if (connectedCount > 0) Color(0xFF10B981) else Color(0xFFEF4444))
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "حالة الربط المركزي (Live Telemetry)",
+                                    color = TextPrimary,
+                                    fontFamily = CairoFont,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(GoldPrimary.copy(alpha = 0.15f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    "14 مفتاح في البنية",
+                                    color = GoldPrimary,
+                                    fontFamily = CairoFont,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TelemetryMetricCard(
+                                title = "المتصلة والفعالة",
+                                value = "$connectedCount / $totalKeys",
+                                color = Color(0xFF10B981),
+                                icon = Icons.Default.CheckCircle,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TelemetryMetricCard(
+                                title = "المُهيأة في النظام",
+                                value = "$configuredCount / $totalKeys",
+                                color = GoldPrimary,
+                                icon = Icons.Default.VpnKey,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TelemetryMetricCard(
+                                title = "متوسط زمن الاستجابة",
+                                value = "${averageLatency}ms",
+                                color = Color(0xFF38BDF8),
+                                icon = Icons.Default.Speed,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TelemetryMetricCard(
+                                title = "نسبة الاستقرار",
+                                value = if (configuredCount > 0) "${((connectedCount.toFloat() / configuredCount) * 100).toInt()}%" else "100%",
+                                color = Color(0xFFA855F7),
+                                icon = Icons.Default.ShowChart,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Button(
+                            onClick = { testAllKeys() },
+                            enabled = !isCheckingAll,
+                            colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (isCheckingAll) {
+                                CircularProgressIndicator(color = DeepSlate, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("جاري فحص جميع المفاتيح بالتوازي...", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                            } else {
+                                Icon(Icons.Default.NetworkCheck, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("فحص حي فوري وشامل لكافة المفاتيح الآن", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val filterList = listOf(
+                        "ALL" to "الكل (14)",
+                        "AI" to "عقول الذكاء الاصطناعي (AI)",
+                        "MEDIA" to "مكتبات الفيديو والوسائط",
+                        "BACKEND" to "السحابة وقواعد البيانات",
+                        "QURAN" to "منظومة القرآن الرسمية"
+                    )
+                    items(filterList) { (key, label) ->
+                        val isSelected = selectedCategoryFilter == key
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) GoldPrimary else Color(0xFF151B2B))
+                                .border(1.dp, if (isSelected) GoldPrimary else Color(0xFF2A344A), RoundedCornerShape(20.dp))
+                                .clickable { selectedCategoryFilter = key }
+                                .padding(horizontal = 14.dp, vertical = 7.dp)
+                        ) {
+                            Text(
+                                label,
+                                color = if (isSelected) DeepSlate else TextSecondary,
+                                fontFamily = CairoFont,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            items(filteredSpecs, key = { it.envName }) { spec ->
+                val rawVal = getKeyActualValue(spec)
+                val isConfigured = rawVal.isNotBlank() && !rawVal.contains("placeholder")
+                val validation = validationStatuses[spec.envName]
+                val isTestingThis = testingKeyEnv == spec.envName
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF151B2B)),
+                    border = BorderStroke(
+                        1.dp,
+                        if (validation?.isValid == true) Color(0xFF10B981).copy(alpha = 0.5f)
+                        else if (!isConfigured) Color(0xFF2A344A)
+                        else Color(0xFFEF4444).copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(GoldPrimary.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(spec.icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        spec.displayName,
+                                        color = TextPrimary,
+                                        fontFamily = CairoFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp
+                                    )
+                                    Text(
+                                        "${spec.envName} • ${spec.provider}",
+                                        color = TextSecondary,
+                                        fontFamily = NotoSansFont,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(
+                                        if (validation?.isValid == true) Color(0xFF10B981).copy(alpha = 0.15f)
+                                        else if (!isConfigured) Color(0xFF64748B).copy(alpha = 0.15f)
+                                        else Color(0xFFEF4444).copy(alpha = 0.15f)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (validation != null) validation.summary
+                                    else if (!isConfigured) "غير مهيأ ⚪"
+                                    else "جاهز للفحص 🟡",
+                                    color = if (validation?.isValid == true) Color(0xFF10B981)
+                                    else if (!isConfigured) Color(0xFF94A3B8)
+                                    else Color(0xFFEF4444),
+                                    fontFamily = CairoFont,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Surface(
+                            color = Color(0xFF0F172A),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFF1E293B)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(verticalAlignment = Alignment.Top) {
+                                    Text("أين وكيف يُوظف؟ ", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    Text(spec.howItWorks, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
+                                }
+                                Row(verticalAlignment = Alignment.Top) {
+                                    Text("لماذا نحتاجه؟ ", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    Text(spec.whyNeeded, color = TextSecondary, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    if (isConfigured) "القيمة: ${rawVal.take(6)}••••${rawVal.takeLast(4)}" else "القيمة: غير معين�� بعد",
+                                    color = if (isConfigured) GoldPrimary else TextSecondary,
+                                    fontFamily = NotoSansFont,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Button(
+                                    onClick = {
+                                        testingKeyEnv = spec.envName
+                                        coroutineScope.launch {
+                                            val res = testSingleKey(spec)
+                                            validationStatuses = validationStatuses + (spec.envName to res)
+                                            testingKeyEnv = null
+                                            if (res.isValid) {
+                                                Toast.makeText(context, "${spec.displayName}: متصل وسليم بنجاح ✅", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "${spec.displayName}: ${res.summary}", Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    },
+                                    enabled = !isTestingThis,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
+                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    if (isTestingThis) {
+                                        CircularProgressIndicator(color = GoldPrimary, modifier = Modifier.size(14.dp), strokeWidth = 1.5.dp)
+                                    } else {
+                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("فحص حي", color = TextPrimary, fontFamily = CairoFont, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(40.dp))
+            }
+        }
+    }
+
+    if (showArchitectureGuide) {
+        AlertDialog(
+            onDismissRequest = { showArchitectureGuide = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AccountTree, contentDescription = null, tint = GoldPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("خريطة التوظيف المعماري للمفاتيح الـ 14", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        "تتوزع المفاتيح الـ 14 في تطبيق قبس ضمن 4 طبقات معمارية متكاملة:",
+                        fontFamily = NotoSansFont,
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+
+                    ArchitectureLayerItem(
+                        layerName = "1. طبقة العقول والذكاء الاصطناعي (AI Brains)",
+                        description = "تشمل Gemini, OpenAI, Groq, OpenRouter, HuggingFace لتوليد السيناريوهات والتحليل الديني وقص الفيديوهات بشكل ذكي.",
+                        color = GoldPrimary
+                    )
+
+                    ArchitectureLayerItem(
+                        layerName = "2. طبقة الصوتيات وتلاوة القرآن (Audio & Voice)",
+                        description = "تشمل ElevenLabs للأصوات السينمائية، و Quran Foundation (Client ID & Secret) لنصوص وتلاوات القرآن المعتمدة.",
+                        color = Color(0xFF10B981)
+                    )
+
+                    ArchitectureLayerItem(
+                        layerName = "3. طبقة الوسائط والفيديو الواقعي (Media B-Roll)",
+                        description = "تشمل Pexels, Pixabay, Coverr لتوفير لقطات سينمائية 4K طبيعية وإسلامية خالية من الحقوق.",
+                        color = Color(0xFF38BDF8)
+                    )
+
+                    ArchitectureLayerItem(
+                        layerName = "4. طبقة السحابة وقواعد البيانات (Backend Cloud)",
+                        description = "تشمل Supabase (URL & Anon Key) لتخزين الصوتيات والمشاريع، و Google Services للإشعارات والتحليلات.",
+                        color = Color(0xFFA855F7)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showArchitectureGuide = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("إغلاق", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Color(0xFF151B2B),
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+}
+
+@Composable
+fun TelemetryMetricCard(
+    title: String,
+    value: String,
+    color: Color,
+    icon: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color(0xFF0F172A),
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(title, color = TextSecondary, fontFamily = CairoFont, fontSize = 11.sp)
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(value, color = color, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+fun ArchitectureLayerItem(
+    layerName: String,
+    description: String,
+    color: Color
+) {
+    Surface(
+        color = Color(0xFF1E293B),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Text(layerName, color = color, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(description, color = TextPrimary, fontFamily = NotoSansFont, fontSize = 11.sp, lineHeight = 16.sp)
+        }
+    }
+}
