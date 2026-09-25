@@ -87,41 +87,41 @@ fun DigitalSpeedCounter() {
                 sample = SpeedMeter.measure()
                 measuring = false
             }
-            kotlinx.coroutines.delay(1000)
+            kotlinx.coroutines.delay(6000)
         }
     }
 
     val accent = if (sample?.ok == true) Color(0xFF10B981) else Color(0xFFEF4444)
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
     Surface(
-        color = Color(0xFF0B0F19).copy(alpha = 0.6f),
-        shape = RoundedCornerShape(10.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.5f))
+        color = Color(0xFF0B0F19).copy(alpha = 0.7f),
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.4f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp).widthIn(min = 92.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text("⚡", fontSize = 18.sp)
-            Spacer(modifier = Modifier.width(8.dp))
+            Text("⚡", fontSize = 12.sp)
+            Spacer(modifier = Modifier.width(4.dp))
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = if (measuring) "···" else sample?.let {
+                    text = if (measuring && sample == null) "···" else sample?.let {
                         if (!it.ok || it.latencyMs < 0) "OFFLINE" else "${it.latencyMs} ms"
                     } ?: "···",
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
+                    fontSize = 11.sp,
                     color = accent,
                     maxLines = 1
                 )
                 Text(
-                    text = if (measuring) "…" else sample?.let {
+                    text = sample?.let {
                         if (!it.ok) "—" else SpeedMeter.formatSpeed(it.downKbps)
-                    } ?: "…",
+                    } ?: "—",
                     fontFamily = FontFamily.Monospace,
-                    fontSize = 11.sp,
+                    fontSize = 9.sp,
                     color = TextSecondary,
                     maxLines = 1
                 )

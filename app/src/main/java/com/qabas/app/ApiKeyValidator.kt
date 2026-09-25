@@ -72,12 +72,21 @@ object ApiKeyValidator {
 
     private suspend fun executeValidation(context: Context, serviceType: String, key: String, hint: String? = null): KeyValidationResult = withContext(Dispatchers.IO) {
         val trimmedKey = key.trim()
-        if (trimmedKey.isEmpty()) {
+        val isPlaceholder = trimmedKey.isEmpty() ||
+                trimmedKey.length < 5 ||
+                trimmedKey.startsWith("your_", ignoreCase = true) ||
+                trimmedKey.contains("placeholder", ignoreCase = true) ||
+                trimmedKey.startsWith("default_", ignoreCase = true) ||
+                trimmedKey.startsWith("test_", ignoreCase = true) ||
+                trimmedKey == "test" ||
+                trimmedKey == "\"\""
+
+        if (isPlaceholder) {
             return@withContext KeyValidationResult(
                 isValid = false,
-                summary = "المفتاح فارغ 🔴",
-                explanation = "لم يتم إدخال أي نص في خانة المفتاح.",
-                suggestedFix = "يرجى نسخ المفتاح من لوحة التحكم ولصقه في الحقل المخصص."
+                summary = "لم يُعيّن بعد ⚪",
+                explanation = "المفتاح غير مضبوط في النظام أو يحمل قيمة تجريبية/افتراضية.",
+                suggestedFix = "اضغط على زر «تعديل» لإدخال المفتاح الفعلي من لوحة التحكم."
             )
         }
 

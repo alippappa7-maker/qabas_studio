@@ -899,7 +899,8 @@ fun AppNavigation(
                 onBack = { viewModel.updateState { copy(appState = AppState.DEVELOPER_DASHBOARD) } },
                 onNavigateToEditKey = { serviceKey ->
                     viewModel.updateState { copy(appState = AppState.SETTINGS) }
-                }
+                },
+                showTopBar = true
             )
         }
         AppState.ISLAMIC_LIBRARY -> {

@@ -313,7 +313,7 @@ fun DeveloperDashboardScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit = 
 
         val devLogs = SystemLogsManager.logs
 
-        Box(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (currentSection) {
                 DashboardSection.MAIN -> {
                     DashboardMainGrid(
@@ -507,7 +507,7 @@ fun DashboardMainGrid(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 32.dp)
+        contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 32.dp)
     ) {
         // بطاقة ملخص المطور المدمجة والفاخرة (Dark Luxury + Glassmorphism)
         // قابلة للتمرير الطبيعي مع كامل الشاشة دون حجب الأقسام أدناها
@@ -760,31 +760,54 @@ private fun DashGroupHeader(title: String, count: Int, isCollapsed: Boolean, onT
 @Composable
 private fun DashCard(quad: Quad) {
     Card(
-        modifier = Modifier.fillMaxWidth().aspectRatio(1.1f).clickable { quad.onClick() },
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 130.dp)
+            .clickable { quad.onClick() },
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(16.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, quad.accent.copy(alpha = 0.35f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(quad.accent.copy(alpha = 0.08f), Color.Transparent, Color(0xFF0B0F19).copy(alpha = 0.3f))))) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(quad.accent.copy(alpha = 0.08f), Color.Transparent, Color(0xFF0B0F19).copy(alpha = 0.3f))
+                    )
+                )
+        ) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 Box(
-                    modifier = Modifier.size(52.dp)
+                    modifier = Modifier.size(46.dp)
                         .background(
                             Brush.linearGradient(listOf(quad.accent.copy(alpha = 0.22f), quad.accent.copy(alpha = 0.08f))),
-                            RoundedCornerShape(14.dp)
+                            RoundedCornerShape(12.dp)
                         )
-                        .border(1.dp, quad.accent.copy(alpha = 0.45f), RoundedCornerShape(14.dp)),
+                        .border(1.dp, quad.accent.copy(alpha = 0.45f), RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(quad.icon, contentDescription = null, tint = quad.accent, modifier = Modifier.size(22.dp))
                 }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(quad.title, color = Color.White, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = quad.title,
+                    color = Color.White,
+                    fontFamily = CairoFont,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
             }
         }
     }
