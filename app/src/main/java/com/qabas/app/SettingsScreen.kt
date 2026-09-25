@@ -249,16 +249,18 @@ fun SettingsScreen(
                             isLinking = true
                             linkVerifyMsg = null
                             coroutineScope.launch {
-                                val newHandle = customHandle.ifBlank { selectedPlatform.handle }
-                                val token = customToken.trim()
-                                // 1) تحقق حقيقي: هل الحساب موجود على المنصة؟
-                                linkVerifyMsg = "نتحقق من وجود الحساب على ${selectedPlatform.name}..."
-                                val exists = SocialAccountManager.verifyProfileExists(selectedPlatform.id, newHandle)
-                                if (exists == SocialAccountManager.VerifyResult.MISSING) {
+                                val cleanHandle = customHandle.trim().removePrefix("@").removeSuffix("@").trim().ifBlank { selectedPlatform.handle }
+                                if (cleanHandle.isBlank()) {
                                     isLinking = false
-                                    linkVerifyMsg = "الحساب غير موجود على المنصة — تحقق من المعرّف"
+                                    linkVerifyMsg = "يرجى إدخال اسم الحساب أولاً"
                                     return@launch
                                 }
+                                val formattedHandle = "@$cleanHandle"
+                                val token = customToken.trim()
+                                // 1) تحقق حقيقي: هل الحساب موجود على المنصة؟
+                                linkVerifyMsg = "نتحقق من الحساب على ${selectedPlatform.name}..."
+                                val exists = SocialAccountManager.verifyProfileExists(selectedPlatform.id, cleanHandle)
+                                
                                 // 2) إن أُدخل رمز Google (يوتيوب): تحقق حقيقي من صلاحيته
                                 var tokenOk = true
                                 if (token.isNotBlank() && selectedPlatform.id == "youtube") {
@@ -270,8 +272,8 @@ fun SettingsScreen(
                                         return@launch
                                     }
                                 }
-                                val verified = exists == SocialAccountManager.VerifyResult.EXISTS || tokenOk && token.isNotBlank()
-                                SocialAccountManager.toggleConnection(context, selectedPlatform.id, true, newHandle, token)
+                                val verified = exists == SocialAccountManager.VerifyResult.EXISTS || (tokenOk && token.isNotBlank())
+                                SocialAccountManager.toggleConnection(context, selectedPlatform.id, true, formattedHandle, token)
                                 SocialAccountManager.setConnectionVerified(context, selectedPlatform.id, verified)
                                 accountsList = SocialAccountManager.getAccounts(context)
                                 isLinking = false
@@ -280,7 +282,7 @@ fun SettingsScreen(
                                 Toast.makeText(
                                     context,
                                     if (verified) "تم ربط ${selectedPlatform.name} (تم التحقق ✅)"
-                                    else "تم حفظ ${selectedPlatform.name} (تعذّر التأكيد — تحقق يدوياً)",
+                                    else "تم حفظ معرّف ${selectedPlatform.name} بنجاح 🟢",
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
@@ -1764,53 +1766,74 @@ fun CollapsibleSettingsCard(
         colors = CardDefaults.cardColors(containerColor = CardSurface),
         shape = RoundedCornerShape(18.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .bouncingClickable { toggleExpanded() },
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable { toggleExpanded() }
+                    .padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(GoldPrimary.copy(alpha = 0.15f)),
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(GoldPrimary.copy(alpha = 0.15f))
+                            .border(1.dp, GoldPrimary.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(icon, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text(title, color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(
+                        text = title,
+                        color = GoldPrimary,
+                        fontFamily = CairoFont,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
                     if (badge != null) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(
-                            color = GoldPrimary.copy(alpha = 0.2f),
-                            shape = RoundedCornerShape(4.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary)
+                            color = GoldPrimary.copy(alpha = 0.15f),
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f))
                         ) {
                             Text(
-                                badge, 
-                                color = GoldPrimary, 
-                                fontFamily = CairoFont, 
-                                fontSize = 10.sp, 
+                                text = badge,
+                                color = GoldPrimary,
+                                fontFamily = CairoFont,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
                     }
                 }
                 
-                IconButton(
-                    onClick = { toggleExpanded() },
-                    modifier = Modifier.size(28.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF151C2C)),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (isExpanded) "طي" else "توسيع",
-                        tint = GoldPrimary
+                        tint = GoldPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

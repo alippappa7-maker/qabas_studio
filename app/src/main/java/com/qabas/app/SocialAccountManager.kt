@@ -281,7 +281,7 @@ object SocialAccountManager {
 
     /** رابط الملف العام للحساب حسب المنصة (يُستخدم للتحقق والعرض). */
     fun publicProfileUrl(platformId: String, handle: String): String? {
-        val h = handle.trim().removePrefix("@")
+        val h = handle.trim().removePrefix("@").removeSuffix("@").trim()
         if (h.isBlank()) return null
         return when (platformId) {
             "youtube" -> "https://www.youtube.com/@$h"
