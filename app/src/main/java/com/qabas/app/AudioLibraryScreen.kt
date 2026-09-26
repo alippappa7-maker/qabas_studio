@@ -66,8 +66,14 @@ fun AudioLibraryScreen(
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var totalDurationMs by remember { mutableLongStateOf(1L) }
     var playerVolume by remember { mutableFloatStateOf(0.85f) }
+    var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
+    var isMuted by remember { mutableStateOf(false) }
     var mediaPlayerInstance by remember { mutableStateOf<MediaPlayer?>(null) }
     var showApplyDialog by remember { mutableStateOf<Pair<String, String>?>(null) } // Pair(audioPath, title)
+
+    // Real Download Progress State
+    var activeDownloadTrackTitle by remember { mutableStateOf<String?>(null) }
+    var activeDownloadProgress by remember { mutableStateOf<DownloadProgress?>(null) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -219,17 +225,17 @@ fun AudioLibraryScreen(
                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
             ) {
                 Surface(
-                    color = Color(0xFF151B2B),
-                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
-                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                    shadowElevation = 12.dp
+                    color = Color(0xFF0F172A).copy(alpha = 0.98f),
+                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.45f)),
+                    shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
+                    shadowElevation = 16.dp
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
-                        // Title & Close
+                        // 1. Header Row: Icon, Title, Apply button, Close button
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -241,9 +247,10 @@ fun AudioLibraryScreen(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(36.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
-                                        .background(GoldPrimary.copy(alpha = 0.15f)),
+                                        .background(GoldPrimary.copy(alpha = 0.15f))
+                                        .border(1.dp, GoldPrimary.copy(alpha = 0.4f), CircleShape),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -254,7 +261,7 @@ fun AudioLibraryScreen(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Column {
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = activePlayingTitle.ifBlank { "معاينة صوتية حية" },
                                         color = TextPrimary,
@@ -265,30 +272,32 @@ fun AudioLibraryScreen(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
-                                        text = "${formatDuration(currentPositionMs)} / ${formatDuration(totalDurationMs)}",
-                                        color = TextSecondary,
-                                        fontFamily = NotoSansFont,
-                                        fontSize = 11.sp
+                                        text = if (isPlaying) "جاري التشغيل الصوتي..." else "متوقف مؤقتاً",
+                                        color = if (isPlaying) EmeraldGreen else TextSecondary,
+                                        fontFamily = CairoFont,
+                                        fontSize = 10.sp
                                     )
                                 }
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
                                 // Apply to project button
                                 Button(
                                     onClick = {
                                         showApplyDialog = Pair(activePlayingUrl ?: "", activePlayingTitle)
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                                     modifier = Modifier.height(34.dp)
                                 ) {
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Check, contentDescription = null, tint = DeepSlate, modifier = Modifier.size(15.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("اعتماد للمشروع", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("اعتماد للمشروع", color = DeepSlate, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                 }
-                                Spacer(modifier = Modifier.width(6.dp))
                                 IconButton(
                                     onClick = { stopAndReleasePlayer() },
                                     modifier = Modifier.size(32.dp)
@@ -298,83 +307,158 @@ fun AudioLibraryScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                        // Seek Bar
-                        Slider(
-                            value = currentPositionMs.toFloat().coerceIn(0f, totalDurationMs.toFloat()),
-                            onValueChange = { newPos ->
-                                currentPositionMs = newPos.toLong()
-                                mediaPlayerInstance?.seekTo(newPos.toInt())
-                            },
-                            valueRange = 0f..totalDurationMs.toFloat(),
-                            colors = SliderDefaults.colors(
-                                thumbColor = GoldPrimary,
-                                activeTrackColor = GoldPrimary,
-                                inactiveTrackColor = Color(0xFF2A344A)
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(20.dp)
+                        // 2. Luxury Waveform Timeline Bar (التايم لاين الاحترافي مع الموجات الصوتية)
+                        LuxuryAudioTimelineBar(
+                            currentPositionMs = currentPositionMs,
+                            totalDurationMs = totalDurationMs,
+                            isPlaying = isPlaying,
+                            onSeek = { targetMs ->
+                                currentPositionMs = targetMs
+                                mediaPlayerInstance?.seekTo(targetMs.toInt())
+                            }
                         )
 
-                        // Volume Control & Play/Pause Controls
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // 3. Digital Dual Counter & Precision Controls & Speed
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Volume slider row
+                            // العداد الرقمي الحي المزدوج (Elapsed / Remaining)
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.weight(1f)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Icon(
-                                    imageVector = if (playerVolume == 0f) Icons.Default.VolumeOff else if (playerVolume < 0.5f) Icons.Default.VolumeDown else Icons.AutoMirrored.Filled.VolumeUp,
-                                    contentDescription = "مستوى الصوت",
-                                    tint = GoldPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Slider(
-                                    value = playerVolume,
-                                    onValueChange = { vol ->
-                                        playerVolume = vol
-                                        mediaPlayerInstance?.setVolume(vol, vol)
-                                    },
-                                    valueRange = 0f..1f,
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = GoldPrimary,
-                                        activeTrackColor = GoldPrimary,
-                                        inactiveTrackColor = Color(0xFF2A344A)
-                                    ),
-                                    modifier = Modifier.width(120.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Surface(
+                                    color = Color(0xFF1E293B),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+                                ) {
+                                    Text(
+                                        text = formatAudioDuration(currentPositionMs),
+                                        color = GoldPrimary,
+                                        fontFamily = NotoSansFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Text("/", color = TextSecondary, fontSize = 10.sp)
+                                val remainingMs = (totalDurationMs - currentPositionMs).coerceAtLeast(0L)
                                 Text(
-                                    "${(playerVolume * 100).toInt()}%",
+                                    text = "-${formatAudioDuration(remainingMs)}",
                                     color = TextSecondary,
                                     fontFamily = NotoSansFont,
                                     fontSize = 11.sp
                                 )
                             }
 
-                            // Play/Pause button
-                            IconButton(
-                                onClick = {
-                                    activePlayingUrl?.let { playTrack(it, activePlayingTitle) }
-                                },
-                                modifier = Modifier
-                                    .size(42.dp)
-                                    .clip(CircleShape)
-                                    .background(GoldPrimary)
+                            // أزرار التحكم بالتشغيل والقفز الزمني (-10s / +10s / Play)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Icon(
-                                    if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = if (isPlaying) "إيقاف مؤقت" else "تشغيل",
-                                    tint = DeepSlate,
-                                    modifier = Modifier.size(24.dp)
-                                )
+                                // -10s
+                                IconButton(
+                                    onClick = {
+                                        val target = (currentPositionMs - 10000L).coerceAtLeast(0L)
+                                        currentPositionMs = target
+                                        mediaPlayerInstance?.seekTo(target.toInt())
+                                    },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(Icons.Default.Replay10, contentDescription = "تراجع 10 ثوان", tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                }
+
+                                // Play / Pause
+                                IconButton(
+                                    onClick = {
+                                        activePlayingUrl?.let { playTrack(it, activePlayingTitle) }
+                                    },
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(GoldPrimary)
+                                ) {
+                                    Icon(
+                                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = if (isPlaying) "إيقاف مؤقت" else "تشغيل",
+                                        tint = DeepSlate,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                // +10s
+                                IconButton(
+                                    onClick = {
+                                        val target = (currentPositionMs + 10000L).coerceAtMost(totalDurationMs)
+                                        currentPositionMs = target
+                                        mediaPlayerInstance?.seekTo(target.toInt())
+                                    },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(Icons.Default.Forward10, contentDescription = "تقديم 10 ثوان", tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                }
+                            }
+
+                            // أزرار السرعة والصوت (Speed & Volume)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                // Speed Chip
+                                Surface(
+                                    color = Color(0xFF1E293B),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF334155)),
+                                    modifier = Modifier.clickable {
+                                        playbackSpeed = when (playbackSpeed) {
+                                            1.0f -> 1.25f
+                                            1.25f -> 1.5f
+                                            1.5f -> 2.0f
+                                            else -> 1.0f
+                                        }
+                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                                            runCatching {
+                                                mediaPlayerInstance?.let { mp ->
+                                                    val p = mp.playbackParams
+                                                    p.speed = playbackSpeed
+                                                    mp.playbackParams = p
+                                                }
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text(
+                                        text = "${playbackSpeed}x",
+                                        color = GoldPrimary,
+                                        fontFamily = NotoSansFont,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                    )
+                                }
+
+                                // Volume Icon / Mute
+                                IconButton(
+                                    onClick = {
+                                        isMuted = !isMuted
+                                        val vol = if (isMuted) 0f else playerVolume
+                                        mediaPlayerInstance?.setVolume(vol, vol)
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                                        contentDescription = "كتم/تشغيل الصوت",
+                                        tint = if (isMuted) Color(0xFFEF4444) else GoldPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -388,13 +472,28 @@ fun AudioLibraryScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            fun triggerDownload(url: String, title: String) {
+                activeDownloadTrackTitle = title
+                activeDownloadProgress = DownloadProgress(percent = 0.05f)
+                coroutineScope.launch {
+                    AudioDownloadHelper.downloadAudioWithProgress(
+                        context = context,
+                        audioUrl = url,
+                        title = title
+                    ) { p ->
+                        activeDownloadProgress = p
+                    }
+                }
+            }
+
             when (selectedTab) {
                 "library" -> {
                     AudioLibrarySection(
                         activePlayingUrl = activePlayingUrl,
                         isPlaying = isPlaying,
                         onPlayTrack = { url, title -> playTrack(url, title) },
-                        onApply = { url, title -> showApplyDialog = Pair(url, title) }
+                        onApply = { url, title -> showApplyDialog = Pair(url, title) },
+                        onDownloadTrack = { url, title -> triggerDownload(url, title) }
                     )
                 }
                 "supabase" -> {
@@ -416,11 +515,24 @@ fun AudioLibraryScreen(
                         activePlayingUrl = activePlayingUrl,
                         isPlaying = isPlaying,
                         onPlayTrack = { url, title -> playTrack(url, title) },
-                        onApply = { url, title -> showApplyDialog = Pair(url, title) }
+                        onApply = { url, title -> showApplyDialog = Pair(url, title) },
+                        onDownloadTrack = { url, title -> triggerDownload(url, title) }
                     )
                 }
             }
         }
+    }
+
+    // Real Download Progress Dialog
+    if (activeDownloadTrackTitle != null && activeDownloadProgress != null) {
+        RealDownloadProgressDialog(
+            trackTitle = activeDownloadTrackTitle!!,
+            progress = activeDownloadProgress!!,
+            onCancelOrDismiss = {
+                activeDownloadTrackTitle = null
+                activeDownloadProgress = null
+            }
+        )
     }
 
     // Apply Audio Dialog
@@ -525,7 +637,8 @@ fun AudioLibrarySection(
     activePlayingUrl: String?,
     isPlaying: Boolean,
     onPlayTrack: (url: String, title: String) -> Unit,
-    onApply: (url: String, title: String) -> Unit
+    onApply: (url: String, title: String) -> Unit,
+    onDownloadTrack: (url: String, title: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -896,15 +1009,7 @@ fun AudioLibrarySection(
                             ) {
                                 IconButton(
                                     onClick = {
-                                        coroutineScope.launch {
-                                            Toast.makeText(context, "جاري تنزيل \"${track.title}\"...", Toast.LENGTH_SHORT).show()
-                                            val ok = AudioDownloadHelper.downloadAudio(context, track.audioUrl, track.title)
-                                            if (ok) {
-                                                Toast.makeText(context, "تم حفظ الملف الصوتي في التنزيلات (Downloads) 📥", Toast.LENGTH_LONG).show()
-                                            } else {
-                                                Toast.makeText(context, "تعذر تنزيل الملف", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
+                                        onDownloadTrack(track.audioUrl, track.title)
                                     },
                                     modifier = Modifier
                                         .size(34.dp)
@@ -1342,7 +1447,8 @@ fun SavedAudioTracksSection(
     activePlayingUrl: String?,
     isPlaying: Boolean,
     onPlayTrack: (url: String, title: String) -> Unit,
-    onApply: (url: String, title: String) -> Unit
+    onApply: (url: String, title: String) -> Unit,
+    onDownloadTrack: (url: String, title: String) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -1454,15 +1560,7 @@ fun SavedAudioTracksSection(
                         ) {
                             Button(
                                 onClick = {
-                                    coroutineScope.launch {
-                                        Toast.makeText(context, "جاري تنزيل \"${item.title}\" إلى الهاتف...", Toast.LENGTH_SHORT).show()
-                                        val ok = AudioDownloadHelper.downloadAudio(context, item.audioUrlOrPath, item.title)
-                                        if (ok) {
-                                            Toast.makeText(context, "تم حفظ الملف الصوتي في مجلد التنزيلات (Downloads) 📥", Toast.LENGTH_LONG).show()
-                                        } else {
-                                            Toast.makeText(context, "تعذر تنزيل الملف", Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
+                                    onDownloadTrack(item.audioUrlOrPath, item.title)
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                                 border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f)),
