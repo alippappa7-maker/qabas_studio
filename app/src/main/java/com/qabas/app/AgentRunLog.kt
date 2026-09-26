@@ -101,6 +101,27 @@ object AgentRunLog {
         } catch (_: Exception) { emptyList() }
     }
 
+    fun deleteRun(context: Context, timestamp: Long): Boolean {
+        return try {
+            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            val arr = JSONArray(prefs.getString(KEY, "[]") ?: "[]")
+            val newArr = JSONArray()
+            var found = false
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                if (o.optLong("time") == timestamp) {
+                    found = true
+                } else {
+                    newArr.put(o)
+                }
+            }
+            if (found) {
+                prefs.edit().putString(KEY, newArr.toString()).apply()
+            }
+            found
+        } catch (_: Exception) { false }
+    }
+
     fun clear(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(KEY).apply()
     }

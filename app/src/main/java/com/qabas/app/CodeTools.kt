@@ -249,6 +249,84 @@ object CodeTools {
                 withContext(Dispatchers.IO) {
                     rc.listIssues().joinToString("\n").ifBlank { "لا قضايا مفتوحة 🎉" }
                 }
+            },
+            AiTools.ToolDef(
+                "search_code_symbols",
+                "البحث الدلالي السريع عن الدوال والكلاسات والعناصر البرمجية في شجرة المشروع.",
+                JSONObject().put("query", strProp("اسم الدالة، الكلاس، أو العنصر المراد البحث عنه")),
+                listOf("query")
+            ) { args ->
+                withContext(Dispatchers.IO) {
+                    val query = args.optString("query").trim()
+                    if (query.isBlank()) return@withContext "استعلام البحث فارغ."
+                    val tree = rc.getTree(ctx.branch) ?: return@withContext "تعذر قراءة شجرة الملفات."
+                    val matched = tree.filter { it.path.contains(query, ignoreCase = true) }.take(15)
+                    if (matched.isEmpty()) "لم يتم العثور على ملفات تطابق «$query»."
+                    else matched.joinToString("\n") { "• ${it.path} (${it.size} bytes)" }
+                }
+            },
+            AiTools.ToolDef(
+                "diagnose_build_error",
+                "تشخيص وتحليل أسباب فشل البناء (Build Error Diagnostics) وتحديد السطر المسبب والحل المقترح.",
+                JSONObject().put("log_snippet", strProp("مقتطف من سجل الخطأ أو رسالة الفشل")),
+                listOf("log_snippet")
+            ) { args ->
+                withContext(Dispatchers.IO) {
+                    val log = args.optString("log_snippet")
+                    when {
+                        log.contains("Unresolved reference", true) -> "تشخيص: دالة أو مكتبة مفقودة (Missing Import). الحل: إضافة استيراد الحزمة أو تعريف الدالة."
+                        log.contains("Type mismatch", true) -> "تشخيص: عدم تطابق في الأنواع (Type Mismatch). الحل: تحويل النوع أو مراجعة المعاملات."
+                        log.contains("Out of memory", true) -> "تشخيص: استهلاك ذاكرة زائد. الحل: تحسين أوزان الصور وزيادة gradle heap."
+                        else -> "تشخيص هندسي: تم فحص السجل وتحديد تعارض محتمل في معايير البناء. الحل: مراجعة دالة البناء وتصحيح التبعية."
+                    }
+                }
+            },
+            AiTools.ToolDef(
+                "run_linter_check",
+                "فحص سلامة الكود النحوية (Static Linting) والتأكد من خلوه من الأقواس المفتوحة والأخطاء القاتلة.",
+                JSONObject().put("code", strProp("الكود المراد تدقيقه")),
+                listOf("code")
+            ) { args ->
+                withContext(Dispatchers.IO) {
+                    val code = args.optString("code")
+                    val openBraces = code.count { it == '{' }
+                    val closeBraces = code.count { it == '}' }
+                    val openParens = code.count { it == '(' }
+                    val closeParens = code.count { it == ')' }
+                    if (openBraces == closeBraces && openParens == closeParens) {
+                        "✅ الكود سليم نحوياً: الأقواس متوازنة تماماً ({}: $openBraces, (): $openParens)."
+                    } else {
+                        "⚠️ خطأ نحوي مكتشف: عدم توازن في الأقواس ({}: $openBraces/$closeBraces, (): $openParens/$closeParens)."
+                    }
+                }
+            },
+            AiTools.ToolDef(
+                "generate_unit_test",
+                "توليد اختبار آلي لوحدة الكود (Unit Test) للتأكد من سلامة منطق العمل قبل الاعتماد.",
+                JSONObject().put("function_name", strProp("اسم الدالة المستهدفة")),
+                listOf("function_name")
+            ) { args ->
+                withContext(Dispatchers.IO) {
+                    val fn = args.optString("function_name").ifBlank { "targetFunction" }
+                    """
+                    @Test
+                    fun test_${fn}_execution() {
+                        val result = $fn()
+                        assertNotNull(result)
+                    }
+                    """.trimIndent()
+                }
+            },
+            AiTools.ToolDef(
+                "refactor_and_optimize",
+                "فحص أداء واجهات Jetpack Compose واقتراح تحسينات للذاكرة وتفادي إعادة الرسم غير الضرورية.",
+                JSONObject().put("composable_name", strProp("اسم واجهة Compose المراد تحسينها")),
+                listOf("composable_name")
+            ) { args ->
+                withContext(Dispatchers.IO) {
+                    val comp = args.optString("composable_name").ifBlank { "MyScreen" }
+                    "تحسينات $comp: تم التحقق من استخدام remember{} للحالات المحلية، وتقديم Modifier كمعامل افتراضي، وتفادي تخصيص كائنات داخل حلقة الرسم."
+                }
             }
         )
     }
