@@ -131,3 +131,38 @@ fun MyApplicationTheme(
         content = content
     )
 }
+
+@Composable
+fun isDarkAppTheme(): Boolean {
+    return ThemeManager.isDarkTheme.collectAsState().value
+}
+
+@Composable
+fun qabasBackground(): Color {
+    val isDark = ThemeManager.isDarkTheme.collectAsState().value
+    return if (isDark) DeepSlate else LightBackground
+}
+
+@Composable
+fun qabasCardSurface(): Color {
+    val isDark = ThemeManager.isDarkTheme.collectAsState().value
+    return if (isDark) CardSurface else LightCardSurface
+}
+
+@Composable
+fun qabasSurface(): Color {
+    val isDark = ThemeManager.isDarkTheme.collectAsState().value
+    return if (isDark) CardSurface else LightSurface
+}
+
+@Composable
+fun qabasTextPrimary(): Color {
+    val isDark = ThemeManager.isDarkTheme.collectAsState().value
+    return if (isDark) TextPrimary else LightTextPrimary
+}
+
+@Composable
+fun qabasTextSecondary(): Color {
+    val isDark = ThemeManager.isDarkTheme.collectAsState().value
+    return if (isDark) TextSecondary else LightTextSecondary
+}

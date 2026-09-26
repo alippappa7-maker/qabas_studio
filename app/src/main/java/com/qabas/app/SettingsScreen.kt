@@ -340,7 +340,7 @@ fun SettingsScreen(
     val selectedPresetAvatar = prefs.getInt("user_avatar_preset", 0)
 
     Scaffold(
-        containerColor = DeepSlate,
+        containerColor = qabasBackground(),
         topBar = {
             TopAppBar(
                 title = { Text(Translator.tr("الإعدادات الحسابية والفنية"), color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 22.sp) },
@@ -349,7 +349,7 @@ fun SettingsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Translator.tr("العودة"), tint = GoldPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
             )
         },
         bottomBar = bottomBar
@@ -369,7 +369,7 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .luxuryCardStyle(shapeRadius = 20.dp, borderAlpha = 0.35f, glowElevation = 6.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CardSurface)
+                colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
             ) {
                 Row(
                     modifier = Modifier.padding(18.dp),

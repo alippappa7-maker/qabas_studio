@@ -179,6 +179,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    AppStartupPermissionHandler()
                     QabasStudioScreen()
                 }
             }

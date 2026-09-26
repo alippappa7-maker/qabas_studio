@@ -364,7 +364,7 @@ val userEmail = prefs.getString("user_email", "user@example.com") ?: "user@examp
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(Translator.tr("الملف الشخصي والمنصات"), fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 18.sp) },
+                title = { Text(Translator.tr("الملف الشخصي والمنصات"), fontFamily = TajawalFont, fontWeight = FontWeight.Bold, color = qabasTextPrimary(), fontSize = 18.sp) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = GoldPrimary)
@@ -375,10 +375,10 @@ val userEmail = prefs.getString("user_email", "user@example.com") ?: "user@examp
                         Icon(Icons.Default.Edit, contentDescription = "تعديل الملف", tint = GoldPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
             )
         },
-        containerColor = DeepSlate
+        containerColor = qabasBackground()
     ) { padding ->
         Column(
             modifier = Modifier
@@ -394,7 +394,7 @@ val userEmail = prefs.getString("user_email", "user@example.com") ?: "user@examp
                     .fillMaxWidth()
                     .luxuryCardStyle(shapeRadius = 20.dp, borderAlpha = 0.35f, glowElevation = 6.dp),
                 shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = CardSurface)
+                colors = CardDefaults.cardColors(containerColor = qabasCardSurface())
             ) {
                 Column(
                     modifier = Modifier.padding(18.dp),

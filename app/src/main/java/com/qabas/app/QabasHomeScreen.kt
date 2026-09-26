@@ -3,7 +3,9 @@ package com.qabas.app
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -148,7 +150,7 @@ fun HomeScreen(
         targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
             animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
         ),
         label = "pulseScale"
     )
@@ -184,6 +186,21 @@ fun HomeScreen(
     }
     val currentCoreStyle by StyleBrain.coreStyle.collectAsState()
     val absorbedStylesList by StyleBrain.absorbedStyles.collectAsState()
+
+    AppPermissionsEntryLauncher()
+
+    var showPlaylistSheet by remember { mutableStateOf(false) }
+    val currentAudioTrack by AudioPlaybackManager.currentTrack.collectAsState()
+    val isAudioPlaying by AudioPlaybackManager.isPlaying.collectAsState()
+
+    val avatarUriString = remember(prefs) { prefs.getString("user_avatar_uri", "") ?: "" }
+    val selectedPresetAvatar = remember(prefs) { prefs.getInt("user_avatar_preset", 0) }
+
+    if (showPlaylistSheet) {
+        AudioPlaylistBottomSheet(
+            onDismiss = { showPlaylistSheet = false }
+        )
+    }
 
     if (showExitDialog) {
         AlertDialog(
@@ -254,9 +271,88 @@ fun HomeScreen(
         }
     ) {
         Scaffold(
-            containerColor = DeepSlate,
+            containerColor = qabasBackground(),
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = bottomBar,
+            bottomBar = {
+                Column {
+                    // Global Floating Mini Player Bar if media is playing
+                    AnimatedVisibility(
+                        visible = currentAudioTrack != null,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        currentAudioTrack?.let { track ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    .clickable { showPlaylistSheet = true },
+                                shape = RoundedCornerShape(16.dp),
+                                color = qabasCardSurface(),
+                                border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.5f)),
+                                shadowElevation = 8.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(CircleShape)
+                                            .background(GoldPrimary.copy(alpha = 0.2f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = track.title,
+                                            color = qabasTextPrimary(),
+                                            fontFamily = CairoFont,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            maxLines = 1
+                                        )
+                                        Text(
+                                            text = "${track.artist} • اضغط للتحكم والقائمة",
+                                            color = EmeraldGreen,
+                                            fontFamily = CairoFont,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { AudioPlaybackManager.playPause(analyticsContext) },
+                                        modifier = Modifier.size(36.dp)
+                                    ) {
+                                        Icon(
+                                            if (isAudioPlaying) Icons.Default.PauseCircleFilled else Icons.Default.PlayCircleFilled,
+                                            contentDescription = "تشغيل / إيقاف",
+                                            tint = GoldPrimary,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { showPlaylistSheet = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.QueueMusic,
+                                            contentDescription = "قائمة التشغيل",
+                                            tint = qabasTextSecondary(),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    bottomBar()
+                }
+            },
             topBar = {
                 TopAppBar(
                     navigationIcon = {
@@ -306,21 +402,58 @@ fun HomeScreen(
                         BadgedBox(
                             badge = { if (notifCount > 0) Badge { Text("$notifCount") } }
                         ) {
-                            Icon(Icons.Default.Notifications, contentDescription = "الإشعارات", tint = if (notifCount > 0) GoldPrimary else TextSecondary)
+                            Icon(Icons.Default.Notifications, contentDescription = "الإشعارات", tint = if (notifCount > 0) GoldPrimary else qabasTextSecondary())
                         }
                     }
                     IconButton(onClick = onLeaderboard) {
-                        Icon(Icons.Default.EmojiEvents, contentDescription = Translator.tr("لوحة الشرف"), tint = TextSecondary)
+                        Icon(Icons.Default.EmojiEvents, contentDescription = Translator.tr("لوحة الشرف"), tint = qabasTextSecondary())
                     }
                     IconButton(onClick = onViewSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = Translator.tr("الإعدادات"), tint = TextSecondary)
+                        Icon(Icons.Default.Settings, contentDescription = Translator.tr("الإعدادات"), tint = qabasTextSecondary())
                     }
-                    IconButton(onClick = onViewProfile) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = Translator.tr("الملف الشخصي"), tint = TextSecondary)
+                    IconButton(
+                        onClick = onViewProfile,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(32.dp),
+                            shape = CircleShape,
+                            color = qabasCardSurface(),
+                            border = BorderStroke(1.5.dp, GoldPrimary)
+                        ) {
+                            if (avatarUriString.isNotBlank()) {
+                                AsyncImage(
+                                    model = avatarUriString,
+                                    contentDescription = Translator.tr("الملف الشخصي"),
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(GoldPrimary.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = when (selectedPresetAvatar) {
+                                            1 -> Icons.Default.AutoAwesome
+                                            2 -> Icons.Default.MovieFilter
+                                            3 -> Icons.Default.MenuBook
+                                            4 -> Icons.Default.Psychology
+                                            else -> Icons.Default.Person
+                                        },
+                                        contentDescription = Translator.tr("الملف الشخصي"),
+                                        tint = GoldPrimary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepSlate)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
             )
         }
     ) { paddingValues ->
