@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,9 +15,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -50,9 +48,10 @@ data class HasanatSectionItem(
     val subtitle: String,
     val desc: String,
     val badge: String,
-    val category: String, // "القرآن والسنة", "العبادات والمواقيت", "السير والتاريخ", "المكتبة والدروس"
+    val category: String, // "الوحيين الشريفين", "العبادات والمواقيت", "السير والتاريخ", "المكتبة والصوتيات"
     val icon: ImageVector,
     val accentColor: Color,
+    val secondaryAccent: Color,
     val route: AppState
 )
 
@@ -72,6 +71,7 @@ fun HasanatHubScreen(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+    val isDarkTheme by ThemeManager.isDarkTheme.collectAsState()
 
     // TTS للكبسولة الإيمانية
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
@@ -95,9 +95,24 @@ fun HasanatHubScreen(
     // حالات البحث والفلترة والعرض
     var searchQuery by remember { mutableStateOf("") }
     var isSearchExpanded by remember { mutableStateOf(false) }
-    var selectedCategory by remember { mutableStateOf("الكل") }
+    var selectedCategoryFilter by remember { mutableStateOf("الكل") }
     var isGridView by remember { mutableStateOf(true) }
     var showHelpDialog by remember { mutableStateOf(false) }
+
+    // انكماش المجموعات (Collapsible groups مثل لوحة المطور)
+    var collapsedGroups by remember { mutableStateOf(setOf<String>()) }
+
+    // نبض الإشعارات والمؤشرات الحية
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
 
     // عداد التسبيح السريع التفاعلي
     val prefs = remember { context.getSharedPreferences("qabas_prefs", Context.MODE_PRIVATE) }
@@ -155,7 +170,7 @@ fun HasanatHubScreen(
         }
     }
 
-    val defaultCity = remember { PrayerCalculationHelper.popularCities[0] } // مكة المكرمة كمرجع أولي أو المدينة المخزنة
+    val defaultCity = remember { PrayerCalculationHelper.popularCities[0] }
     val calculatedPrayerTimes = remember(currentTimeMillis) {
         val cal = Calendar.getInstance().apply { timeInMillis = currentTimeMillis }
         PrayerCalculationHelper.calculatePrayerTimes(cal, defaultCity, defaultCity.defaultMethod)
@@ -181,7 +196,6 @@ fun HasanatHubScreen(
         val gregorianFormat = SimpleDateFormat("d MMMM yyyy", Locale("ar"))
         val gregStr = gregorianFormat.format(cal.time)
 
-        // خوارزمية تقريبية دقيقة للتقويم الهجري المعتمد
         val day = cal.get(Calendar.DAY_OF_MONTH)
         val month = cal.get(Calendar.MONTH) + 1
         val year = cal.get(Calendar.YEAR)
@@ -217,41 +231,47 @@ fun HasanatHubScreen(
         Pair(hijriStr, gregStr)
     }
 
-    // أقسام مشكاة الهدى الـ 8 المعتمدة مع البيانات الحقيقية والبيان
+    // أقسام مشكاة الهدى الـ 8 المعتمدة بتنسيق ألوان وأيقونات مميزة ودقيقة
     val sections = remember {
         listOf(
+            // 1. الوحيين الشريفين
+            HasanatSectionItem(
+                id = "quran",
+                title = "القرآن الكريم والتجويد",
+                subtitle = "المصحف المرتل وتدبر الآيات",
+                desc = "تلاوات خاشعة لكبار القراء، أحكام التجويد، تفاسير معتمدة، وتزامن الآيات.",
+                badge = "114 سورة • 6236 آية",
+                category = "الوحيين الشريفين",
+                icon = Icons.Default.MenuBook,
+                accentColor = Color(0xFF10B981), // Emerald Green
+                secondaryAccent = Color(0xFF34D399),
+                route = AppState.QURAN_HUB
+            ),
             HasanatSectionItem(
                 id = "sahihain",
                 title = "الصحيحان: البخاري ومسلم",
                 subtitle = "أصح كتابين بعد كتاب الله",
-                desc = "متون محققة كاملة، شروح الأئمة، تفريغ أحاديث، ونظام استماع صوتي نقي.",
+                desc = "متون محققة كاملة، شروح الأئمة، تفريغ أحاديث، واستماع صوتي نقي.",
                 badge = "7,563 حديث صحيح",
-                category = "القرآن والسنة",
+                category = "الوحيين الشريفين",
                 icon = Icons.Default.AutoStories,
-                accentColor = GoldPrimary,
+                accentColor = GoldPrimary, // Royal Gold
+                secondaryAccent = GoldSecondary,
                 route = AppState.ISLAMIC_LIBRARY
             ),
+
+            // 2. العبادات والمواقيت
             HasanatSectionItem(
-                id = "quran",
-                title = "القرآن الكريم والتجويد",
-                subtitle = "المصحف المرتل برواية حفص",
-                desc = "تلاوات خاشعة لكبار القراء، أحكام التجويد، تدبر الآيات، وحفظ الآيات متزامنة.",
-                badge = "114 سورة • 6236 آية",
-                category = "القرآن والسنة",
-                icon = Icons.Default.MenuBook,
-                accentColor = Color(0xFF10B981),
-                route = AppState.QURAN_HUB
-            ),
-            HasanatSectionItem(
-                id = "library",
-                title = "المكتبة الإسلامية الجامعة",
-                subtitle = "أمهات كتب السلف والتراث",
-                desc = "كتب العقيدة والتفسير والفقه المعتمدة مع فهارس ذكية وكبسولات تلخيص حكمة.",
-                badge = "كتب محققة معتمدة",
-                category = "المكتبة والدروس",
-                icon = Icons.Default.LibraryBooks,
-                accentColor = Color(0xFFF59E0B),
-                route = AppState.ISLAMIC_LIBRARY
+                id = "prayer",
+                title = "محراب الصلاة والمواقيت",
+                subtitle = "حساب فلكي دقيق وبوصلة القبلة",
+                desc = "أوقات الصلوات الخمس المعتمدة، تنبيهات الأذان، ورياض الجنة وسنن الرواتب.",
+                badge = "مواقيت حية • بوصلة",
+                category = "العبادات والمواقيت",
+                icon = Icons.Default.Mosque,
+                accentColor = Color(0xFF0EA5E9), // Sky Blue
+                secondaryAccent = Color(0xFF38BDF8),
+                route = AppState.PRAYER_TIMES
             ),
             HasanatSectionItem(
                 id = "azkar",
@@ -261,29 +281,22 @@ fun HasanatHubScreen(
                 badge = "130+ ذكر مأثور",
                 category = "العبادات والمواقيت",
                 icon = Icons.Default.AutoAwesome,
-                accentColor = Color(0xFFEAB308),
+                accentColor = Color(0xFFF59E0B), // Luminous Amber
+                secondaryAccent = Color(0xFFFCD34D),
                 route = AppState.AZKAR
             ),
-            HasanatSectionItem(
-                id = "prayer",
-                title = "محراب الصلاة والمواقيت",
-                subtitle = "حساب فلكي دقيق وبوصلة القبلة",
-                desc = "أوقات الصلوات الخمس بحساب فلكي معتمد، تنبيهات الأذان، ورياض الجنة وسنن الرواتب.",
-                badge = "مواقيت حية • بوصلة",
-                category = "العبادات والمواقيت",
-                icon = Icons.Default.NotificationsActive,
-                accentColor = Color(0xFF38BDF8),
-                route = AppState.PRAYER_TIMES
-            ),
+
+            // 3. السير والتاريخ الإيماني
             HasanatSectionItem(
                 id = "scholars",
                 title = "سيرة الأكابر والتراجم",
                 subtitle = "أئمة السلف والتابعين والعلماء",
-                desc = "سير الأئمة الأربعة وعلماء الحديث وصناع التاريخ الإسلامي المشرق مع الدروس المستفادة.",
+                desc = "سير الأئمة الأربعة وعلماء الحديث وصناع التاريخ الإسلامي مع الدروس المستفادة.",
                 badge = "تراجم أئمة الهدى",
                 category = "السير والتاريخ",
-                icon = Icons.Default.PersonSearch,
-                accentColor = Color(0xFF14B8A6),
+                icon = Icons.Default.School,
+                accentColor = Color(0xFF8B5CF6), // Royal Violet
+                secondaryAccent = Color(0xFFA78BFA),
                 route = AppState.SCHOLAR_BIOGRAPHIES
             ),
             HasanatSectionItem(
@@ -294,8 +307,23 @@ fun HasanatHubScreen(
                 badge = "قصص القرآن المحكمة",
                 category = "السير والتاريخ",
                 icon = Icons.Default.HistoryEdu,
-                accentColor = Color(0xFFA855F7),
+                accentColor = Color(0xFF14B8A6), // Turquoise / Teal
+                secondaryAccent = Color(0xFF2DD4BF),
                 route = AppState.QASAS
+            ),
+
+            // 4. المكتبة والصوتيات
+            HasanatSectionItem(
+                id = "library",
+                title = "المكتبة الإسلامية الجامعة",
+                subtitle = "أمهات كتب السلف والتراث",
+                desc = "كتب العقيدة والتفسير والفقه المعتمدة مع فهارس ذكية وكبسولات تلخيص حكمة.",
+                badge = "كتب محققة معتمدة",
+                category = "المكتبة والعلوم والصوتيات",
+                icon = Icons.Default.LocalLibrary,
+                accentColor = Color(0xFFF97316), // Coral Orange
+                secondaryAccent = Color(0xFFFB923C),
+                route = AppState.ISLAMIC_LIBRARY
             ),
             HasanatSectionItem(
                 id = "audio",
@@ -303,18 +331,19 @@ fun HasanatHubScreen(
                 subtitle = "تسجيلات وتلاوات نقية مؤثرة",
                 desc = "مكتبة صوتية إسلامية تضم تلاوات نادرة ومحاضرات علمية منتقاة بعناية.",
                 badge = "تسجيلات عالية النقاء",
-                category = "المكتبة والدروس",
-                icon = Icons.Default.Audiotrack,
-                accentColor = Color(0xFFEC4899),
+                category = "المكتبة والعلوم والصوتيات",
+                icon = Icons.Default.GraphicEq,
+                accentColor = Color(0xFFEC4899), // Neon Fuchsia / Rose
+                secondaryAccent = Color(0xFFF472B6),
                 route = AppState.AUDIO_LIBRARY
             )
         )
     }
 
     // تصفية الأقسام بحسب البحث والتصنيف
-    val filteredSections = remember(searchQuery, selectedCategory, sections) {
+    val filteredSections = remember(searchQuery, selectedCategoryFilter, sections) {
         sections.filter { item ->
-            val matchCategory = selectedCategory == "الكل" || item.category == selectedCategory
+            val matchCategory = selectedCategoryFilter == "الكل" || item.category == selectedCategoryFilter
             val matchSearch = searchQuery.isBlank() ||
                     item.title.contains(searchQuery, ignoreCase = true) ||
                     item.subtitle.contains(searchQuery, ignoreCase = true) ||
@@ -324,8 +353,13 @@ fun HasanatHubScreen(
         }
     }
 
+    // تجميع الأقسام وفق المجموعات (مثل ترتيب لوحة المطور)
+    val groupedSections = remember(filteredSections) {
+        filteredSections.groupBy { it.category }.toList()
+    }
+
     Scaffold(
-        containerColor = DeepSlate,
+        containerColor = qabasBackground(),
         bottomBar = bottomBar,
         topBar = {
             TopAppBar(
@@ -356,7 +390,7 @@ fun HasanatHubScreen(
                             )
                             Text(
                                 "رحاب القرآن والسنة وعلوم سلف الأمة",
-                                color = TextSecondary,
+                                color = qabasTextSecondary(),
                                 fontFamily = NotoSansFont,
                                 fontSize = 10.sp,
                                 maxLines = 1
@@ -375,7 +409,7 @@ fun HasanatHubScreen(
                         Icon(
                             if (isSearchExpanded) Icons.Default.Close else Icons.Default.Search,
                             contentDescription = "بحث",
-                            tint = if (isSearchExpanded) GoldPrimary else TextSecondary
+                            tint = if (isSearchExpanded) GoldPrimary else qabasTextSecondary()
                         )
                     }
                     // زر تبديل نمط العرض (شبكة / قائمة)
@@ -388,10 +422,10 @@ fun HasanatHubScreen(
                     }
                     // زر دليل مشكاة الهدى
                     IconButton(onClick = { showHelpDialog = true }) {
-                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "حول مشكاة الهدى", tint = TextSecondary)
+                        Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "حول مشكاة الهدى", tint = qabasTextSecondary())
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0A0F1A))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = qabasBackground())
             )
         }
     ) { paddingValues ->
@@ -408,38 +442,38 @@ fun HasanatHubScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("ابحث في أقسام ومحتويات مشكاة الهدى...", color = TextSecondary, fontSize = 12.sp) },
+                        placeholder = { Text("ابحث في أقسام ومحتويات مشكاة الهدى...", color = qabasTextSecondary(), fontSize = 12.sp) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = GoldPrimary) },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
                                 IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "مسح", tint = TextSecondary)
+                                    Icon(Icons.Default.Clear, contentDescription = "مسح", tint = qabasTextSecondary())
                                 }
                             }
                         },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = GoldPrimary,
                             unfocusedBorderColor = Color(0xFF26334D),
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
+                            focusedTextColor = qabasTextPrimary(),
+                            unfocusedTextColor = qabasTextPrimary()
                         ),
                         singleLine = true
                     )
                 }
             }
 
-            // 1️⃣ صرح مشكاة الهدى الزجاجي الفاخر (Hero Header - Dark Luxury + Glassmorphism)
+            // 1️⃣ صرح مشكاة الهدى الفاخر (Hero Header - Dark Luxury + Glassmorphism مثل لوحة المطور)
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1728).copy(alpha = 0.95f)),
+                    colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.95f)),
                     border = BorderStroke(
                         1.dp,
                         Brush.horizontalGradient(
-                            listOf(GoldPrimary.copy(alpha = 0.5f), Color(0x33B89758), GoldSecondary.copy(alpha = 0.35f))
+                            listOf(GoldPrimary.copy(alpha = 0.55f), Color(0x33B89758), GoldSecondary.copy(alpha = 0.35f))
                         )
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
@@ -455,7 +489,7 @@ fun HasanatHubScreen(
                             .padding(14.dp)
                     ) {
                         Column {
-                            // سطر التاريخ الهجري والميلادي الحقيقي
+                            // سطر العنوان والختم الفاخر
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -472,19 +506,28 @@ fun HasanatHubScreen(
                                         fontSize = 12.sp
                                     )
                                 }
-                                Text(
-                                    text = realDateInfo.second,
-                                    color = TextSecondary,
-                                    fontFamily = NotoSansFont,
-                                    fontSize = 11.sp
-                                )
+
+                                Surface(
+                                    color = GoldPrimary.copy(alpha = 0.15f),
+                                    shape = CircleShape,
+                                    border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.4f))
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Icon(Icons.Default.Verified, contentDescription = null, tint = GoldPrimary, modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("مشكاة الهدى", color = GoldPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = CairoFont)
+                                    }
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
 
-                            // بطاقة الصلاة القادمة الحية التفاعلية
+                            // بطاقة الصلاة القادمة الحية التفاعلية مع مؤشر النبض الحي
                             Surface(
-                                color = Color(0xFF0A0F1D).copy(alpha = 0.8f),
+                                color = Color(0xFF0A0F1D).copy(alpha = 0.85f),
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
                                 modifier = Modifier
@@ -501,23 +544,29 @@ fun HasanatHubScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
                                             modifier = Modifier
-                                                .size(32.dp)
+                                                .size(34.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF38BDF8).copy(alpha = 0.15f))
-                                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.35f), CircleShape),
+                                                .background(Color(0xFF0EA5E9).copy(alpha = 0.15f))
+                                                .border(1.dp, Color(0xFF0EA5E9).copy(alpha = 0.4f), CircleShape),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(10.dp))
                                         Column {
-                                            Text(
-                                                "الصلاة القادمة: صلاة ${nextPrayerInfo.first} (${nextPrayerInfo.second})",
-                                                color = Color.White,
-                                                fontFamily = CairoFont,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    "الصلاة القادمة: صلاة ${nextPrayerInfo.first} (${nextPrayerInfo.second})",
+                                                    color = Color.White,
+                                                    fontFamily = CairoFont,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Canvas(modifier = Modifier.size(7.dp)) {
+                                                    drawCircle(color = Color(0xFF10B981).copy(alpha = pulseAlpha))
+                                                }
+                                            }
                                             Text(
                                                 "متبقي على النداء: ${nextPrayerInfo.third}",
                                                 color = Color(0xFF38BDF8),
@@ -527,7 +576,28 @@ fun HasanatHubScreen(
                                             )
                                         }
                                     }
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "فتح المواقيت", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "فتح المواقيت", tint = GoldPrimary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // المؤشرات السريعة المدمجة (مثل لوحة المطور)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(DeepSlate.copy(alpha = 0.75f), RoundedCornerShape(10.dp))
+                                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(Modifier.weight(1f)) {
+                                    QuickMishkatMetric(Icons.Default.MenuBook, "القرآن", "114 سورة", Color(0xFF10B981))
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    QuickMishkatMetric(Icons.Default.AutoStories, "الأحاديث", "7,563 حديث", GoldPrimary)
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    QuickMishkatMetric(Icons.Default.TouchApp, "الأذكار", "130+ مأثور", Color(0xFFF59E0B))
                                 }
                             }
                         }
@@ -540,7 +610,7 @@ fun HasanatHubScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF111728).copy(alpha = 0.95f)),
+                    colors = CardDefaults.cardColors(containerColor = qabasCardSurface().copy(alpha = 0.95f)),
                     border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
@@ -589,7 +659,7 @@ fun HasanatHubScreen(
                                     },
                                     modifier = Modifier.size(28.dp)
                                 ) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "نسخ", tint = qabasTextSecondary(), modifier = Modifier.size(16.dp))
                                 }
 
                                 IconButton(
@@ -604,7 +674,7 @@ fun HasanatHubScreen(
                                     },
                                     modifier = Modifier.size(28.dp)
                                 ) {
-                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Default.Share, contentDescription = "مشاركة", tint = qabasTextSecondary(), modifier = Modifier.size(16.dp))
                                 }
 
                                 IconButton(
@@ -621,7 +691,7 @@ fun HasanatHubScreen(
                         // نص الآية / الحديث بالخط العربي الأصيل
                         Text(
                             text = "« ${activePearl.text} »",
-                            color = Color.White,
+                            color = qabasTextPrimary(),
                             fontFamily = AmiriFont,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
@@ -646,7 +716,7 @@ fun HasanatHubScreen(
                             )
                             Text(
                                 text = "💡 ${activePearl.benefit}",
-                                color = TextSecondary,
+                                color = qabasTextSecondary(),
                                 fontFamily = NotoSansFont,
                                 fontSize = 10.sp,
                                 maxLines = 1,
@@ -662,7 +732,7 @@ fun HasanatHubScreen(
             // 3️⃣ السبحة الذكية المدمجة (Quick Interactive Tasbeeh Counter)
             item {
                 Surface(
-                    color = Color(0xFF0D1424).copy(alpha = 0.9f),
+                    color = qabasCardSurface().copy(alpha = 0.9f),
                     shape = RoundedCornerShape(16.dp),
                     border = BorderStroke(1.dp, Color(0xFF1E2B44)),
                     modifier = Modifier.fillMaxWidth()
@@ -686,7 +756,7 @@ fun HasanatHubScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     "السبحة الذكية المدمجة",
-                                    color = Color.White,
+                                    color = qabasTextPrimary(),
                                     fontFamily = CairoFont,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp
@@ -702,9 +772,9 @@ fun HasanatHubScreen(
                                 },
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                             ) {
-                                Icon(Icons.Default.RestartAlt, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+                                Icon(Icons.Default.RestartAlt, contentDescription = null, tint = qabasTextSecondary(), modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(3.dp))
-                                Text("تصفير", color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
+                                Text("تصفير", color = qabasTextSecondary(), fontFamily = CairoFont, fontSize = 10.sp)
                             }
                         }
 
@@ -782,22 +852,22 @@ fun HasanatHubScreen(
 
             // 4️⃣ فلاتر تصنيف الأقسام السريعة (Category Filter Chips)
             item {
-                val categoryFilters = listOf("الكل", "القرآن والسنة", "العبادات والمواقيت", "السير والتاريخ", "المكتبة والدروس")
+                val categoryFilters = listOf("الكل", "الوحيين الشريفين", "العبادات والمواقيت", "السير والتاريخ", "المكتبة والعلوم والصوتيات")
                 LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     items(categoryFilters) { cat ->
-                        val isSelected = selectedCategory == cat
+                        val isSelected = selectedCategoryFilter == cat
                         Surface(
-                            color = if (isSelected) GoldPrimary else Color(0xFF121927),
+                            color = if (isSelected) GoldPrimary else qabasCardSurface(),
                             shape = RoundedCornerShape(14.dp),
                             border = BorderStroke(1.dp, if (isSelected) GoldPrimary else Color(0xFF222F47)),
-                            modifier = Modifier.clickable { selectedCategory = cat }
+                            modifier = Modifier.clickable { selectedCategoryFilter = cat }
                         ) {
                             Text(
                                 text = cat,
-                                color = if (isSelected) DeepSlate else TextSecondary,
+                                color = if (isSelected) DeepSlate else qabasTextSecondary(),
                                 fontFamily = CairoFont,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 11.sp,
@@ -808,13 +878,28 @@ fun HasanatHubScreen(
                 }
             }
 
-            // 5️⃣ أقسام مشكاة الهدى الـ 8 إما بنمط الشبكة المتزنة أو القائمة المفصلة
-            if (isGridView) {
-                // نمط الشبكة الأنيقة ثنائية الأعمدة (Grid Mode)
+            // 5️⃣ الأقسام منظمة ومجمعة تماماً مثل لوحة المطور (Grouped Categories with Collapse/Expand)
+            groupedSections.forEach { (groupTitle, groupItems) ->
+                val isCollapsed = groupTitle in collapsedGroups
+
+                // رأس المجموعة المنسدل الفاخر (مثل لوحة المطور DashGroupHeader)
                 item {
-                    val chunked = filteredSections.chunked(2)
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        chunked.forEach { rowItems ->
+                    MishkatGroupHeader(
+                        title = groupTitle,
+                        count = groupItems.size,
+                        isCollapsed = isCollapsed,
+                        onToggle = {
+                            collapsedGroups = if (isCollapsed) collapsedGroups - groupTitle else collapsedGroups + groupTitle
+                        }
+                    )
+                }
+
+                if (!isCollapsed) {
+                    if (isGridView) {
+                        // نمط الشبكة الأنيقة (2-Column Grid)
+                        val chunked = groupItems.chunked(2)
+                        items(chunked.size) { index ->
+                            val rowItems = chunked[index]
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -831,13 +916,14 @@ fun HasanatHubScreen(
                                 }
                             }
                         }
-                    }
-                }
-            } else {
-                // نمط القائمة المفصلة المباشرة (List Mode)
-                items(filteredSections, key = { it.id }) { item ->
-                    MishkatListCard(section = item) {
-                        onNavigate(item.route)
+                    } else {
+                        // نمط القائمة المفصلة
+                        items(groupItems.size) { index ->
+                            val item = groupItems[index]
+                            MishkatListCard(section = item) {
+                                onNavigate(item.route)
+                            }
+                        }
                     }
                 }
             }
@@ -852,14 +938,14 @@ fun HasanatHubScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Mosque, contentDescription = null, tint = GoldPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("رسالة مِشكاة الهُدى", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 16.sp)
+                    Text("رسالة مِشكاة الهُدى", fontFamily = CairoFont, fontWeight = FontWeight.Bold, color = qabasTextPrimary(), fontSize = 16.sp)
                 }
             },
             text = {
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "قسم «مِشكاة الهُدى» في تطبيق قبس هو المرفأ الإيماني والعلمي الجامع للمسلم، يهدف إلى:",
-                        color = TextSecondary,
+                        color = qabasTextSecondary(),
                         fontFamily = NotoSansFont,
                         fontSize = 11.sp
                     )
@@ -884,43 +970,114 @@ fun HasanatHubScreen(
     }
 }
 
-/** بطاقة القسم في نمط الشبكة المتزنة دون أي مساحات ميتة */
+@Composable
+private fun QuickMishkatMetric(icon: ImageVector, label: String, value: String, accent: Color) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(label, color = TextSecondary, fontFamily = CairoFont, fontSize = 10.sp)
+        }
+        Text(value, color = Color.White, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+    }
+}
+
+/** رأس المجموعة القابل للطي (مستوحى تماماً من DashGroupHeader في لوحة المطور) */
+@Composable
+private fun MishkatGroupHeader(
+    title: String,
+    count: Int,
+    isCollapsed: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 4.dp)
+            .clickable(onClick = onToggle),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            if (isCollapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+            contentDescription = null,
+            tint = GoldPrimary,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            title,
+            color = GoldPrimary,
+            fontFamily = CairoFont,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+        Spacer(Modifier.width(6.dp))
+        Surface(
+            color = GoldPrimary.copy(alpha = 0.15f),
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, GoldPrimary.copy(alpha = 0.35f))
+        ) {
+            Text(
+                "$count",
+                color = GoldPrimary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = NotoSansFont,
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        HorizontalDivider(modifier = Modifier.weight(1f), color = GoldPrimary.copy(alpha = 0.25f))
+    }
+}
+
+/** بطاقة القسم في نمط الشبكة الأنيقة (Dark Luxury + Glassmorphism مثل DashCard) */
 @Composable
 private fun MishkatGridCard(
     section: HasanatSectionItem,
     onClick: () -> Unit
 ) {
-    Surface(
-        onClick = onClick,
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 150.dp),
-        shape = RoundedCornerShape(16.dp),
-        color = Color(0xFF111726).copy(alpha = 0.95f),
+            .heightIn(min = 165.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF111726).copy(alpha = 0.95f)),
         border = BorderStroke(
             1.dp,
             Brush.verticalGradient(
-                listOf(section.accentColor.copy(alpha = 0.45f), Color(0x1AFFFFFF), section.accentColor.copy(alpha = 0.15f))
+                listOf(
+                    section.accentColor.copy(alpha = 0.55f),
+                    Color(0x1AFFFFFF),
+                    section.accentColor.copy(alpha = 0.2f)
+                )
             )
         ),
-        shadowElevation = 3.dp
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        listOf(section.accentColor.copy(alpha = 0.08f), Color.Transparent, Color(0xFF0A0E18).copy(alpha = 0.4f))
+                        listOf(
+                            section.accentColor.copy(alpha = 0.12f),
+                            Color.Transparent,
+                            Color(0xFF0A0E18).copy(alpha = 0.6f)
+                        )
                     )
                 )
-                .padding(12.dp)
+                .padding(13.dp)
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                horizontalAlignment = Alignment.Start
             ) {
-                // الأيقونة والشارة
+                // الصف العلوي: الأيقونة المضيئة والشارة الأنيقة
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -928,19 +1085,28 @@ private fun MishkatGridCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .background(section.accentColor.copy(alpha = 0.15f))
-                            .border(1.dp, section.accentColor.copy(alpha = 0.35f), CircleShape),
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(section.accentColor.copy(alpha = 0.25f), section.accentColor.copy(alpha = 0.08f))
+                                )
+                            )
+                            .border(1.2.dp, section.accentColor.copy(alpha = 0.5f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(section.icon, contentDescription = null, tint = section.accentColor, modifier = Modifier.size(20.dp))
+                        Icon(
+                            section.icon,
+                            contentDescription = null,
+                            tint = section.accentColor,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
 
                     Surface(
-                        color = section.accentColor.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, section.accentColor.copy(alpha = 0.3f))
+                        color = section.accentColor.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(7.dp),
+                        border = BorderStroke(1.dp, section.accentColor.copy(alpha = 0.35f))
                     ) {
                         Text(
                             text = section.badge,
@@ -949,12 +1115,12 @@ private fun MishkatGridCard(
                             fontWeight = FontWeight.Bold,
                             fontSize = 9.sp,
                             maxLines = 1,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // العنوان الرئيسي
                 Text(
@@ -962,26 +1128,52 @@ private fun MishkatGridCard(
                     color = Color.White,
                     fontFamily = CairoFont,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    textAlign = TextAlign.Center,
+                    fontSize = 13.sp,
+                    lineHeight = 17.sp,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                // العنوان الفرعي المميز
+                Text(
+                    text = section.subtitle,
+                    color = section.secondaryAccent,
+                    fontFamily = CairoFont,
+                    fontSize = 10.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 // الوصف المختصر المركز
                 Text(
                     text = section.desc,
                     color = TextSecondary,
                     fontFamily = NotoSansFont,
-                    fontSize = 10.sp,
+                    fontSize = 9.5.sp,
                     lineHeight = 13.sp,
-                    textAlign = TextAlign.Center,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // سطر السهم والتفاعل
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "فتح",
+                        tint = section.accentColor,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
             }
         }
     }
@@ -996,25 +1188,31 @@ private fun MishkatListCard(
     Surface(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = Color(0xFF111726).copy(alpha = 0.95f),
-        border = BorderStroke(1.dp, section.accentColor.copy(alpha = 0.35f))
+        border = BorderStroke(1.dp, section.accentColor.copy(alpha = 0.4f)),
+        shadowElevation = 4.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(section.accentColor.copy(alpha = 0.08f), Color.Transparent)
+                    )
+                )
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(46.dp)
                     .clip(CircleShape)
-                    .background(section.accentColor.copy(alpha = 0.15f))
-                    .border(1.dp, section.accentColor.copy(alpha = 0.35f), CircleShape),
+                    .background(section.accentColor.copy(alpha = 0.16f))
+                    .border(1.2.dp, section.accentColor.copy(alpha = 0.45f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(section.icon, contentDescription = null, tint = section.accentColor, modifier = Modifier.size(22.dp))
+                Icon(section.icon, contentDescription = null, tint = section.accentColor, modifier = Modifier.size(24.dp))
             }
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -1030,12 +1228,13 @@ private fun MishkatListCard(
                         color = Color.White,
                         fontFamily = CairoFont,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
+                        fontSize = 13.5.sp,
                         maxLines = 1
                     )
                     Surface(
                         color = section.accentColor.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(6.dp)
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, section.accentColor.copy(alpha = 0.35f))
                     ) {
                         Text(
                             text = section.badge,
@@ -1047,15 +1246,15 @@ private fun MishkatListCard(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = section.subtitle,
-                    color = GoldSecondary,
+                    color = section.secondaryAccent,
                     fontFamily = CairoFont,
                     fontSize = 11.sp,
                     maxLines = 1
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Text(
                     text = section.desc,
                     color = TextSecondary,
@@ -1068,7 +1267,7 @@ private fun MishkatListCard(
             }
 
             Spacer(modifier = Modifier.width(8.dp))
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "فتح", tint = section.accentColor, modifier = Modifier.size(16.dp))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "فتح", tint = section.accentColor, modifier = Modifier.size(18.dp))
         }
     }
 }

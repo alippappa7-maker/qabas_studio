@@ -967,7 +967,10 @@ fun SettingsScreen(
                 }
             }
 
-            // 6. About & Platform Info Collapsible Section
+            // 6. Support & Contribution Section (دعم استدامة خوادم ودعامات قبس)
+            SupportContributionSection()
+
+            // 7. About & Platform Info Collapsible Section
             CollapsibleSettingsCard(
                 title = Translator.tr("حول تطبيق قبس والمعلومات"),
                 icon = Icons.Default.Info,

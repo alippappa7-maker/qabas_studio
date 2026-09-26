@@ -1373,6 +1373,10 @@ fun SystemControlsSection(context: Context) {
         Text("القواعد المشروطة وتجارب A/B", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
         Text("تجاوز قيمة مفتاح لشريحة فقط (إصدار/نوع مستخدم/نسبة طرح) — تُقيَّم الأعلى أولوية أولاً.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
         ConfigOverridesEditor(context = context)
+
+        // ── إعدادات الدعم ومجتمع واتساب السحابية ──
+        HorizontalDivider(color = Color(0xFF1E293B))
+        SupportConfigDevSection(context = context)
     }
 }
 
@@ -4264,3 +4268,141 @@ fun DevStudioSignatureSection(context: Context) {
         }
     }
 }
+
+@Composable
+fun SupportConfigDevSection(context: Context) {
+    val coroutineScope = rememberCoroutineScope()
+    var cfg by remember { mutableStateOf(SupportConfigManager.current(context)) }
+    var isSaving by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        cfg = SupportConfigManager.refreshFromCloud(context)
+    }
+
+    var whatsappUrl by remember(cfg) { mutableStateOf(cfg.whatsappGroupUrl) }
+    var whatsappName by remember(cfg) { mutableStateOf(cfg.whatsappGroupName) }
+    var paypalUrl by remember(cfg) { mutableStateOf(cfg.paypalUrl) }
+    var usdtAddress by remember(cfg) { mutableStateOf(cfg.usdtTronAddress) }
+    var bankName by remember(cfg) { mutableStateOf(cfg.bankName) }
+    var bankIban by remember(cfg) { mutableStateOf(cfg.bankIban) }
+    var hadithQuote by remember(cfg) { mutableStateOf(cfg.hadithQuote) }
+
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text("إعدادات الدعم ومجتمع واتساب السحابية", color = GoldPrimary, fontFamily = TajawalFont, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("تعديل روابط ومحافظ الدعم ومجموعة واتساب لجميع المستخدمين.", color = Color.Gray, fontFamily = NotoSansFont, fontSize = 12.sp)
+            }
+            Surface(
+                color = Color(0xFF25D366).copy(alpha = 0.2f),
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Text("WhatsApp + Cloud", color = Color(0xFF25D366), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+            }
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1E293B)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("رابط مجموعة واتساب الرسمية:", color = Color(0xFF25D366), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                OutlinedTextField(
+                    value = whatsappUrl,
+                    onValueChange = { whatsappUrl = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF25D366),
+                        unfocusedBorderColor = Color(0xFF1E293B),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White
+                    )
+                )
+
+                Text("رابط PayPal / بطاقة الدفع:", color = Color(0xFF0070BA), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                OutlinedTextField(
+                    value = paypalUrl,
+                    onValueChange = { paypalUrl = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true
+                )
+
+                Text("عنوان محفظة USDT (Tron TRC20):", color = Color(0xFF10B981), fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                OutlinedTextField(
+                    value = usdtAddress,
+                    onValueChange = { usdtAddress = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true
+                )
+
+                Text("رقم الآيبان (IBAN):", color = GoldPrimary, fontFamily = CairoFont, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                OutlinedTextField(
+                    value = bankIban,
+                    onValueChange = { bankIban = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    singleLine = true
+                )
+
+                Text("الحديث الشريف / الآية التحفيزية:", color = TextSecondary, fontFamily = CairoFont, fontSize = 12.sp)
+                OutlinedTextField(
+                    value = hadithQuote,
+                    onValueChange = { hadithQuote = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp),
+                    maxLines = 3
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = {
+                        isSaving = true
+                        coroutineScope.launch {
+                            val next = cfg.copy(
+                                whatsappGroupUrl = whatsappUrl.trim(),
+                                whatsappGroupName = whatsappName.trim(),
+                                paypalUrl = paypalUrl.trim(),
+                                usdtTronAddress = usdtAddress.trim(),
+                                bankName = bankName.trim(),
+                                bankIban = bankIban.trim(),
+                                hadithQuote = hadithQuote.trim()
+                            )
+                            val ok = SupportConfigManager.saveAndPublish(context, next, AdminGuard.currentIdentity(context))
+                            cfg = next
+                            isSaving = false
+                            android.widget.Toast.makeText(
+                                context,
+                                if (ok) "تم نشر بيانات الدعم ومجموعة واتساب لجميع المستخدمين سحابياً! 🚀" else "تم الحفظ محلياً",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GoldPrimary),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !isSaving
+                ) {
+                    if (isSaving) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.Black, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(6.dp))
+                    } else {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text("حفظ ونشر التعديلات سحابياً للجميع", color = Color.Black, fontFamily = NotoSansFont, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
