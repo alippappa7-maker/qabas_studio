@@ -316,6 +316,19 @@ data class WorkspaceDraftEntity(
     val lastSavedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "changelog_entries")
+data class ChangelogEntity(
+    @PrimaryKey val id: String,
+    val versionName: String,
+    val versionCode: Int,
+    val title: String,
+    val releaseDate: String,
+    val highlights: String, // Multiline points
+    val isLatest: Boolean = false,
+    val categoryBadge: String = "تحديث رئيسي ⭐",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 @Dao
 interface WorkspaceDraftDao {
     @Query("SELECT * FROM workspace_drafts WHERE id = :id")
@@ -337,6 +350,24 @@ interface WorkspaceDraftDao {
     suspend fun clearAllDrafts()
 }
 
+@Dao
+interface ChangelogDao {
+    @Query("SELECT * FROM changelog_entries ORDER BY versionCode DESC, timestamp DESC")
+    fun getAllChangelogsFlow(): Flow<List<ChangelogEntity>>
+
+    @Query("SELECT * FROM changelog_entries ORDER BY versionCode DESC, timestamp DESC")
+    suspend fun getAllChangelogs(): List<ChangelogEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChangelogs(list: List<ChangelogEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertChangelog(entry: ChangelogEntity)
+
+    @Query("SELECT COUNT(*) FROM changelog_entries")
+    suspend fun getCount(): Int
+}
+
 @Database(
     entities = [
         ProjectEntity::class,
@@ -348,9 +379,10 @@ interface WorkspaceDraftDao {
         MemorizationRecord::class,
         QuranChallengeRecord::class,
         TadabburRecord::class,
-        WorkspaceDraftEntity::class
+        WorkspaceDraftEntity::class,
+        ChangelogEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -364,6 +396,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun quranChallengeDao(): QuranChallengeDao
     abstract fun tadabburDao(): TadabburDao
     abstract fun workspaceDraftDao(): WorkspaceDraftDao
+    abstract fun changelogDao(): ChangelogDao
 
     companion object {
         @Volatile
@@ -505,3 +538,63 @@ class WorkspaceRepository(private val workspaceDraftDao: WorkspaceDraftDao) {
     suspend fun deleteDraft(id: String) = workspaceDraftDao.deleteDraft(id)
     suspend fun clearAllDrafts() = workspaceDraftDao.clearAllDrafts()
 }
+
+class ChangelogRepository(private val changelogDao: ChangelogDao) {
+    val allChangelogsFlow: Flow<List<ChangelogEntity>> = changelogDao.getAllChangelogsFlow()
+
+    suspend fun getAllChangelogs(): List<ChangelogEntity> {
+        ensureDefaultChangelogs()
+        return changelogDao.getAllChangelogs()
+    }
+
+    suspend fun insertChangelog(entry: ChangelogEntity) = changelogDao.insertChangelog(entry)
+
+    suspend fun ensureDefaultChangelogs() {
+        if (changelogDao.getCount() == 0) {
+            val defaults = listOf(
+                ChangelogEntity(
+                    id = "v2_4_0",
+                    versionName = "2.4.0",
+                    versionCode = 240,
+                    title = "هندسة الشاشات المستقلة ودعم الخوادم ومجتمع واتساب 🚀",
+                    releaseDate = "26 سبتمبر 2026",
+                    categoryBadge = "أحدث إصدار 🌟",
+                    isLatest = true,
+                    highlights = "• إعادة هندسة الإعدادات إلى شاشات فرعية مستقلة بنظام Material 3 كامل.\n• إضافة قسم الدعم والمساهمة المتكامل وكفالة الخوادم بالتعليقات والأسهم.\n• ربط مجتمع واتساب الرسمي مع إمكانية الدخول المباشر ونسخ الرابط بلمسة.\n• تزامن سحابي حي لبيانات الدعم والتحديثات عبر Firestore.\n• تسريع تشغيل الفيديو وتحديث واجهة مشكاة الهدى بتصميم زجاجي مذهب."
+                ),
+                ChangelogEntity(
+                    id = "v2_3_0",
+                    versionName = "2.3.0",
+                    versionCode = 230,
+                    title = "استوديو بطاقات الحديث النبوي ومكتبة الصوتيات 📜",
+                    releaseDate = "15 سبتمبر 2026",
+                    categoryBadge = "تحديث رئيسي ✦",
+                    isLatest = false,
+                    highlights = "• إطلاق استوديو بطاقات الحديث الشريف بـ 5 قوالب جمالية متقدمة.\n• مكتبة الصوتيات والتلاوات النادرة مع دعم التشغيل في الخلفية.\n• فحص التجويد الصوتي المباشر وحساب مواقيت الصلاة الفلكي الدقيق.\n• نظام التنزيل الذكي في الخلفية مع شريط التقدم ونسبة الإنجاز الحية."
+                ),
+                ChangelogEntity(
+                    id = "v2_1_0",
+                    versionName = "2.1.0",
+                    versionCode = 210,
+                    title = "حارس المحتوى الشرعي والوضع الليلي الملكي 🛡️",
+                    releaseDate = "28 أغسطس 2026",
+                    categoryBadge = "تحسينات أمان ⚡",
+                    isLatest = false,
+                    highlights = "• تفعيل فلتر المحتوى الذكي (Islamic ContentGuard) لضمان نقاء المحتوى.\n• دعم التبديل السلس بين النمط الليلي الفاخر والنمط الفاتح.\n• تحسين محرك التصدير السينمائي FFmpeg بدقة 1080p و 4K بدون تقطيع.\n• إضافة بوصلة القبلة التفاعلية وسجل الأذكار اليومية."
+                ),
+                ChangelogEntity(
+                    id = "v1_0_0",
+                    versionName = "1.0.0",
+                    versionCode = 100,
+                    title = "الإطلاق الرسمي لمنظومة قبس لصناعة المحتوى الإسلامي 🌟",
+                    releaseDate = "1 أغسطس 2026",
+                    categoryBadge = "الإطلاق الأولي 🕋",
+                    isLatest = false,
+                    highlights = "• المخرج الذكي بالذكاء الاصطناعي لتوليد نصوص وسيناريوهات الريلز الدعوية.\n• المصحف المرتل برواية حفص عن عاصم وتفسير الآيات.\n• قاعدة بيانات محلية فائقة السرعة مع تخزين مشفر للمشاريع والمفضلات."
+                )
+            )
+            changelogDao.insertChangelogs(defaults)
+        }
+    }
+}
+

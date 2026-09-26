@@ -398,6 +398,12 @@ fun AppNavigation(
                 bottomBar = bottomNav
             )
         }
+        AppState.ABOUT_US -> {
+            AboutUsAndVersionScreen(
+                onBack = { viewModel.updateState { copy(appState = AppState.SETTINGS) } },
+                bottomBar = bottomNav
+            )
+        }
         AppState.TELEPROMPTER -> {
             TeleprompterScreen(
                 onBack = { viewModel.updateState { copy(appState = AppState.HOME) } },
