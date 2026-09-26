@@ -123,6 +123,9 @@ data class QueuedCommand(
     var status: CommandStatus = CommandStatus.PENDING,
     val addedAt: Long = System.currentTimeMillis(),
     var turnsUsed: Int = 0,
+    var totalTurns: Int = 6,
+    var progress: Float = 0f,
+    var currentPhase: String = "في الانتظار...",
     var resultSummary: String = ""
 )
 
@@ -451,12 +454,29 @@ private fun AgentLiveConsoleTab(
         activeCommandId = null
     }
 
+    fun deleteCommand(cmd: QueuedCommand) {
+        if (cmd.id == activeCommandId) {
+            stopAgent()
+        }
+        commandQueue.remove(cmd)
+        Toast.makeText(context, "تم حذف المهمة نهائياً من الطابور 🗑️", Toast.LENGTH_SHORT).show()
+    }
+
     // تنفيذ أمر محدد وتمريره عبر خطوات الـ ReAct مع دعم الطابور التلقائي
     fun executeCommand(cmd: QueuedCommand) {
         isRunning = true
         isPaused = false
         activeCommandId = cmd.id
         cmd.status = CommandStatus.RUNNING
+        cmd.totalTurns = when (selectedSpecialization) {
+            AgentSpecialization.ARCHITECT -> 7
+            AgentSpecialization.BUG_HUNTER -> 5
+            AgentSpecialization.CODE_REVIEWER -> 4
+            AgentSpecialization.TURBO -> 4
+        }
+        cmd.turnsUsed = 1
+        cmd.progress = 0.15f
+        cmd.currentPhase = "بدء التحليل والتخطيط الهندسي"
         currentTurn = 1
         steps = emptyList()
         generatedDiff = null
@@ -753,7 +773,9 @@ private fun AgentLiveConsoleTab(
             }
 
             cmd.status = CommandStatus.COMPLETED
-            cmd.turnsUsed = 6
+            cmd.turnsUsed = cmd.totalTurns
+            cmd.progress = 1.0f
+            cmd.currentPhase = "اكتملت المهمة بنجاح ✅"
             cmd.resultSummary = "تم إنجاز المهمة بنجاح عبر ${provider.displayName}"
 
             AgentRunLog.record(
@@ -1150,20 +1172,29 @@ private fun AgentLiveConsoleTab(
         // ==========================================
         // 📋 طابور الأوامر البرمجية (Mission Command Queue)
         // ==========================================
+        // ==========================================
+        // 📋 لوحة تحكم طابور الأوامر البرمجية (Command Queue Control Dashboard)
+        // ==========================================
         item {
+            val totalQueue = commandQueue.size
+            val runningCount = commandQueue.count { it.status == CommandStatus.RUNNING }
+            val pausedCount = commandQueue.count { it.status == CommandStatus.PAUSED }
+            val pendingCount = commandQueue.count { it.status == CommandStatus.PENDING }
+            val completedCount = commandQueue.count { it.status == CommandStatus.COMPLETED }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color(0xFF0B101E))
+                    .background(Color(0xFF090E1D))
                     .border(
                         BorderStroke(
-                            1.dp,
+                            1.2.dp,
                             Brush.horizontalGradient(
                                 listOf(
                                     Color(0xFF38BDF8).copy(alpha = 0.6f),
-                                    Color(0xFF1E2D4A).copy(alpha = 0.3f),
-                                    Color.Transparent
+                                    Color(0xFFA855F7).copy(alpha = 0.4f),
+                                    Color(0xFF10B981).copy(alpha = 0.3f)
                                 )
                             )
                         ),
@@ -1172,6 +1203,7 @@ private fun AgentLiveConsoleTab(
                     .padding(14.dp)
             ) {
                 Column {
+                    // شريط العنوان والإحصاءات
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1179,9 +1211,9 @@ private fun AgentLiveConsoleTab(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.FormatListNumbered, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(7.dp))
                             Text(
-                                "طابور الأوامر البرمجية (Command Queue)",
+                                "لوحة تحكم طابور الأوامر (Queue Dashboard)",
                                 color = Color.White,
                                 fontFamily = CairoFont,
                                 fontWeight = FontWeight.Bold,
@@ -1189,97 +1221,268 @@ private fun AgentLiveConsoleTab(
                             )
                         }
 
-                        val pendingCount = commandQueue.count { it.status == CommandStatus.PENDING }
                         Surface(
-                            color = if (pendingCount > 0) Color(0xFFF59E0B).copy(alpha = 0.2f) else Color(0xFF1E293B),
+                            color = if (totalQueue > 0) Color(0xFF38BDF8).copy(alpha = 0.15f) else Color(0xFF1E293B),
                             shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, if (pendingCount > 0) Color(0xFFF59E0B) else Color(0xFF334155))
+                            border = BorderStroke(1.dp, if (totalQueue > 0) Color(0xFF38BDF8).copy(alpha = 0.4f) else Color(0xFF334155))
                         ) {
                             Text(
-                                if (pendingCount > 0) "$pendingCount مهام مجدولة" else "الطابور فارغ",
-                                color = if (pendingCount > 0) Color(0xFFF59E0B) else Color(0xFF94A3B8),
+                                "$totalQueue مهام إجمالاً",
+                                color = if (totalQueue > 0) Color(0xFF38BDF8) else Color(0xFF94A3B8),
                                 fontFamily = CairoFont,
                                 fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                             )
                         }
                     }
 
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // كبسولات توزيع حالات الطابور
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            color = Color(0xFF0C1929),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF38BDF8)))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("نشطة: $runningCount", color = Color(0xFF38BDF8), fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Surface(
+                            color = Color(0xFF1F122B),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFA855F7).copy(alpha = 0.4f))
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFA855F7)))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("موقوفة: $pausedCount", color = Color(0xFFA855F7), fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Surface(
+                            color = Color(0xFF1F180A),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f))
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFFF59E0B)))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("بالانتظار: $pendingCount", color = Color(0xFFF59E0B), fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        Surface(
+                            color = Color(0xFF0B1C14),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f))
+                        ) {
+                            Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("مكتملة: $completedCount", color = Color(0xFF10B981), fontFamily = CairoFont, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // قائمة المهام في الطابور مع تقدم كل منها وأزرار التحكم
                     if (commandQueue.isEmpty()) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            "لا توجد مهام في الطابور حالياً. اكتب مهمة أدناه واضغط «➕ إضافة للطابور» ليتم تنفيذها بالتتابع تلقائياً.",
-                            color = Color(0xFF64748B),
-                            fontFamily = CairoFont,
-                            fontSize = 10.5.sp,
-                            lineHeight = 15.sp
-                        )
+                        Surface(
+                            color = Color(0xFF050811),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, Color(0xFF1E2D4A)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "لا توجد مهام في الطابور حالياً. اكتب مهمة أدناه واضغط «➕ إضافة للطابور» ليتم إدراجها وجدولتها تلقائياً.",
+                                color = Color(0xFF64748B),
+                                fontFamily = CairoFont,
+                                fontSize = 10.5.sp,
+                                modifier = Modifier.padding(12.dp),
+                                lineHeight = 16.sp
+                            )
+                        }
                     } else {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             commandQueue.forEachIndexed { idx, cmd ->
+                                val isActive = cmd.id == activeCommandId
+                                val isCmdRunning = cmd.status == CommandStatus.RUNNING
+                                val isCmdPaused = cmd.status == CommandStatus.PAUSED
+                                val isCmdPending = cmd.status == CommandStatus.PENDING
+
                                 Surface(
-                                    color = Color(0xFF050811),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = BorderStroke(1.dp, cmd.status.color.copy(alpha = 0.4f)),
+                                    color = if (isActive) Color(0xFF070F20) else Color(0xFF050812),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(
+                                        if (isActive) 1.2.dp else 1.dp,
+                                        if (isActive) cmd.status.color else cmd.status.color.copy(alpha = 0.35f)
+                                    ),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                "#${idx + 1}",
-                                                color = Color(0xFF64748B),
-                                                fontFamily = FontFamily.Monospace,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        // سطر الرأس: الرقم، النص، وحالة المهمة
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                Surface(
+                                                    color = cmd.status.color.copy(alpha = 0.15f),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    border = BorderStroke(0.8.dp, cmd.status.color.copy(alpha = 0.4f))
+                                                ) {
+                                                    Text(
+                                                        "#${idx + 1}",
+                                                        color = cmd.status.color,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
                                                     cmd.prompt,
                                                     color = Color.White,
                                                     fontFamily = CairoFont,
-                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    fontSize = 11.5.sp,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
-                                                if (cmd.resultSummary.isNotBlank()) {
-                                                    Text(
-                                                        cmd.resultSummary,
-                                                        color = Color(0xFF94A3B8),
-                                                        fontFamily = CairoFont,
-                                                        fontSize = 9.sp
-                                                    )
-                                                }
                                             }
-                                        }
 
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+
                                             Surface(
                                                 color = cmd.status.color.copy(alpha = 0.15f),
-                                                shape = RoundedCornerShape(4.dp),
-                                                border = BorderStroke(1.dp, cmd.status.color.copy(alpha = 0.4f))
+                                                shape = RoundedCornerShape(6.dp),
+                                                border = BorderStroke(1.dp, cmd.status.color.copy(alpha = 0.45f))
                                             ) {
                                                 Text(
                                                     cmd.status.label,
                                                     color = cmd.status.color,
                                                     fontFamily = CairoFont,
+                                                    fontWeight = FontWeight.Bold,
                                                     fontSize = 9.5.sp,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                 )
                                             }
+                                        }
 
-                                            if (cmd.status == CommandStatus.PENDING || cmd.status == CommandStatus.COMPLETED || cmd.status == CommandStatus.CANCELLED) {
-                                                IconButton(
-                                                    onClick = { commandQueue.remove(cmd) },
-                                                    modifier = Modifier.size(24.dp)
-                                                ) {
-                                                    Icon(Icons.Default.Close, contentDescription = "حذف", tint = Color(0xFFEF4444), modifier = Modifier.size(12.dp))
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        // تقدم تنفيذ المهمة
+                                        val displayProgress = if (isCmdRunning || isCmdPaused) {
+                                            (cmd.turnsUsed.toFloat() / cmd.totalTurns.toFloat()).coerceIn(0.1f, 1f)
+                                        } else if (cmd.status == CommandStatus.COMPLETED) 1f else 0f
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                if (isCmdRunning) "⚡ المرحلة: ${cmd.currentPhase}"
+                                                else if (isCmdPaused) "⏸️ معلقة عند الجولة ${cmd.turnsUsed} من ${cmd.totalTurns}"
+                                                else if (cmd.status == CommandStatus.COMPLETED) "✅ تم الإنجاز في ${cmd.turnsUsed} جولات"
+                                                else "⏳ بانتظار بدء الجولة...",
+                                                color = if (isCmdRunning) Color(0xFF38BDF8) else if (isCmdPaused) Color(0xFFA855F7) else Color(0xFF94A3B8),
+                                                fontFamily = CairoFont,
+                                                fontSize = 9.5.sp
+                                            )
+
+                                            Text(
+                                                "${(displayProgress * 100).toInt()}%",
+                                                color = cmd.status.color,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 9.5.sp
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        LinearProgressIndicator(
+                                            progress = { displayProgress },
+                                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                                            color = cmd.status.color,
+                                            trackColor = Color(0xFF1E293B)
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // شريط أزرار التحكم الخاصة بهذه المهمة تحديداً
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                if (isCmdRunning) {
+                                                    // زر إيقاف مؤقت
+                                                    Button(
+                                                        onClick = { pauseAgent() },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4C1D95)),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                        modifier = Modifier.height(28.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Pause, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text("إيقاف مؤقت", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                                    }
+                                                } else if (isCmdPaused) {
+                                                    // زر استئناف
+                                                    Button(
+                                                        onClick = { resumeAgent() },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF047857)),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                        modifier = Modifier.height(28.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text("استئناف", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                                    }
+                                                } else if (isCmdPending) {
+                                                    // زر تشغيل الآن
+                                                    Button(
+                                                        onClick = { executeCommand(cmd) },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                        modifier = Modifier.height(28.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text("تنفيذ الآن", color = Color.White, fontFamily = CairoFont, fontSize = 10.sp)
+                                                    }
                                                 }
+                                            }
+
+                                            // زر حذف نهائي من الطابور
+                                            IconButton(
+                                                onClick = { deleteCommand(cmd) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.DeleteForever,
+                                                    contentDescription = "حذف نهائياً من الطابور",
+                                                    tint = Color(0xFFEF4444).copy(alpha = 0.85f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
                                             }
                                         }
                                     }
@@ -1287,16 +1490,34 @@ private fun AgentLiveConsoleTab(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // أزرار التحكم الجماعية
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             TextButton(
                                 onClick = { commandQueue.removeAll { it.status == CommandStatus.COMPLETED || it.status == CommandStatus.CANCELLED } },
                                 contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("مسح المهام المنتهية 🧹", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.sp)
+                                Icon(Icons.Default.CleaningServices, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("مسح المنتهية 🧹", color = Color(0xFF94A3B8), fontFamily = CairoFont, fontSize = 10.5.sp)
+                            }
+
+                            TextButton(
+                                onClick = {
+                                    if (isRunning) stopAgent()
+                                    commandQueue.clear()
+                                    Toast.makeText(context, "تم تفريغ طابور المهام بالكامل 🗑️", Toast.LENGTH_SHORT).show()
+                                },
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("تفريغ الطابور كاملاً", color = Color(0xFFEF4444), fontFamily = CairoFont, fontSize = 10.5.sp)
                             }
                         }
                     }
